@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Demo from "../Demo";
 
-// Personal demo link: /demo/Nature's-Nook shows "Nature's Nook".
+// Personal demo link: /demo/The-Urb-Tribe shows "The Urb Tribe".
 // Hyphens in the link stand for spaces, so the link reads cleanly in WhatsApp.
 type Props = { params: Promise<{ name: string }> };
 
