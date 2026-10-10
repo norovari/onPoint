@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +10,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Coming back from an email link that couldn't sign you in on this device
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("link") === "expired") {
+      setInfo("If you just confirmed your email, it's done: sign in below. If you were resetting your password, ask for a new link and open it on this device.");
+    }
+  }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -30,7 +37,7 @@ export default function LoginPage() {
     const email = (document.getElementById("email") as HTMLInputElement).value.trim();
     if (!email) return setError("Enter your email above, then tap “Forgot password” again.");
     setError(null);
-    const { error } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/reset` });
+    const { error } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/confirm?next=/auth/reset` });
     if (error) return setError(error.message);
     setInfo("Check your email for a link to set a new password.");
   }
