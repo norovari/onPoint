@@ -46,9 +46,12 @@ describe("platform admin", () => {
 });
 
 describe("plans and billing", () => {
-  test("new businesses start on a 14-day Business trial", async () => {
+  test("new businesses start on a 3-day Business trial", async () => {
     const p = await w.db.as(U.ownerA, (q) => val(q, `select public.business_plan($1)`, [w.bizA]));
     expect(p).toMatchObject({ plan: "business", status: "trialing", launch_discount_open: true });
+    const days = (await w.db.query<any>(
+      `select round(extract(epoch from (current_period_end - now())) / 86400)::int as d from subscriptions where business_id = $1`, [w.bizA])).rows[0].d;
+    expect(days).toBe(3);
   });
 
   test("subscribing within 24 hours: 20% off the first 3 months, then full price", async () => {
@@ -69,7 +72,7 @@ describe("plans and billing", () => {
     const sub = (await w.db.query<any>(`select * from subscriptions where business_id = $1`, [w.bizA])).rows[0];
     expect(sub).toMatchObject({ plan: "starter", status: "active", payment_method: "card", paystack_authorization_code: "AUTH_x", discount_cycles_remaining: 2 });
     // Paid month starts after the remaining trial
-    expect(new Date(sub.current_period_end).getTime()).toBeGreaterThan(Date.now() + 40 * 86400_000);
+    expect(new Date(sub.current_period_end).getTime()).toBeGreaterThan(Date.now() + 32 * 86400_000);
 
     // Renewal 2 and 3 discounted, renewal 4 at full price
     const amounts: number[] = [];

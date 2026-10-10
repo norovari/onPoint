@@ -4,7 +4,7 @@
 export type PlanId = "free" | "starter" | "business" | "multi_site";
 
 export const LAUNCH_DISCOUNT = { pct: 20, months: 3, hours: 24 };
-export const TRIAL_DAYS = 14;
+export const TRIAL_DAYS = 3;
 
 export const PLANS: { id: PlanId; name: string; price: number; blurb: string; features: string[] }[] = [
   {

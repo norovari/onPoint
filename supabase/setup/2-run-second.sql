@@ -226,7 +226,7 @@ drop policy shifts_select on shifts;
 create policy shifts_select on shifts for select to authenticated
   using (private.can_access_shift(id));
 
--- New businesses get the Business plan free for 14 days, then drop to Free.
+-- New businesses get the Business plan free for 3 days, then drop to Free.
 create or replace function public.create_business(p_name text, p_location_name text default 'Main store', p_standard_float numeric default 500)
 returns uuid
 language plpgsql security definer set search_path = ''
@@ -247,7 +247,7 @@ begin
     values (v_biz, coalesce(nullif(trim(p_location_name), ''), 'Main store'), greatest(coalesce(p_standard_float, 0), 0));
   insert into public.memberships (business_id, user_id, role) values (v_biz, auth.uid(), 'owner');
   insert into public.subscriptions (business_id, plan, status, current_period_end, billing_email)
-    values (v_biz, 'business', 'trialing', now() + interval '14 days', v_email);
+    values (v_biz, 'business', 'trialing', now() + interval '3 days', v_email);
   return v_biz;
 end $$;
 revoke execute on function public.create_business(text, text, numeric) from public, anon;

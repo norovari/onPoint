@@ -11,7 +11,7 @@ Run by **Norovari (Pty) Ltd t/a OnPoint**.
 - **Pricing (`/pricing`) and terms, privacy and refunds (`/terms`):** Paystack needs both pages before approving an account.
 
 **For each dispensary**
-- **Sign up with the business name:** they get a 14-day Business-plan trial with no card. The 24-hour launch offer gives 20% off the first 3 monthly payments.
+- **Sign up with the business name:** they get a 3-day Business-plan trial with no card. The 24-hour launch offer gives 20% off the first 3 monthly payments.
 - **Staff:** blind opening and closing counts, cash count, card machine total, deliveries and wastage, specials sold.
 - **Managers:** import the till file, or type in the till's end-of-day report, then approve or return the shift.
 - **Owner screens for every shift:**
