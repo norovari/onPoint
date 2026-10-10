@@ -20,7 +20,7 @@ export default function Terms() {
         <p>A difference shown by OnPoint is something to look into. It is not proof that anyone did anything wrong. Take your own advice before acting on it, especially in any staff matter.</p>
 
         <h2>Plans and payment</h2>
-        <p>New accounts get a free trial. After it ends, the account moves to the Free plan unless you choose a paid plan. Paid plans are billed monthly in advance by card, through Paystack. Each account has its own reference number (starting NY0R0), shown on every payment. Payments renew automatically each month until you cancel. The launch discount applies to the first three monthly payments when you subscribe within 24 hours of creating your account.</p>
+        <p>New accounts get a free trial. After it ends, the account moves to the Free plan unless you choose a paid plan. Paid plans are billed monthly in advance by card, through PayFast. Each account has its own reference number (starting NY0R0), shown on every payment. Payments renew automatically each month until you cancel. The launch discount applies to the first three monthly payments when you subscribe within 24 hours of creating your account.</p>
         <p>If a card payment fails, you have 7 days to update your payment before the account moves to the Free plan. Your records are kept.</p>
 
         <h2>Cancelling and refunds</h2>

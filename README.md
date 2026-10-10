@@ -8,7 +8,7 @@ Run by **Norovari (Pty) Ltd t/a OnPoint**.
 
 **Public, no sign-up**
 - **Front page (`/`):** a dispensary types its name and gets a demo shift with its own name on it (`/demo`).
-- **Pricing (`/pricing`) and terms, privacy and refunds (`/terms`):** Paystack needs both pages before approving an account.
+- **Pricing (`/pricing`) and terms, privacy and refunds (`/terms`):** PayFast expects both pages before approving an account.
 
 **For each dispensary**
 - **Sign up with the business name:** they get a 3-day Business-plan trial with no card. The 24-hour launch offer gives 20% off the first 3 monthly payments.
@@ -23,7 +23,7 @@ Run by **Norovari (Pty) Ltd t/a OnPoint**.
   - Stock for next shift
 - **Alerts:** stock and money don't tally (valued at selling price), cash short, card machine doesn't match, a special gives away extra items, a product went into minus, running low. They show in the app on every plan, and are emailed on paid plans once email is set up.
 - **Monthly report (Business plan and up):** what goes missing most, and on whose shifts.
-- **Plan page:** pay by card through Paystack; renews monthly. Each account has a reference (NY0R02192, NY0R02193, …) and each payment is numbered under it (NY0R02192-01, -02, …).
+- **Plan page:** pay by card through PayFast; the card is saved (tokenised) and charged monthly. Each account has a reference (NY0R02192, NY0R02193, …) and each payment is numbered under it (NY0R02192-01, -02, …).
 
 **For you (`/admin`)**
 - Only a confirmed sign-in as **nyorovai@gmail.com** opens it. Everyone else gets "not found". This is checked in the database, not just the page.
@@ -64,7 +64,7 @@ git push -u origin main
 
 ### 3. Vercel (hosting)
 1. Import the GitHub repo.
-2. Add every variable from `.env.example`. The secret key, Paystack key and CRON_SECRET are server-only: never prefix them with `NEXT_PUBLIC_`.
+2. Add every variable from `.env.example`. The secret key, PayFast details and CRON_SECRET are server-only: never prefix them with `NEXT_PUBLIC_`.
 3. Deploy, then add your domain under Settings → Domains.
 4. The daily card-renewal job in `vercel.json` runs at 08:00 South African time.
 
@@ -72,10 +72,10 @@ git push -u origin main
 Sign up on the live site with **nyorovai@gmail.com**, confirm the email, then sign in. The **Admin** tab appears. Use a new password, not one that has been written down or shared, and turn on two-factor authentication for that account in Supabase when you can.
 
 ### 5. Getting paid
-- **Card (Paystack):** open a Paystack account for **Norovari (Pty) Ltd**, separate from Norovari Tours. Describe OnPoint honestly as stock-control software for retailers, with dispensaries as your first customers. Once approved:
-  - put the live secret key in `PAYSTACK_SECRET_KEY`
-  - set the webhook URL to `https://<domain>/api/paystack/webhook`
-  - the "Pay by card" buttons appear automatically
+- **Card (PayFast):** use the PayFast account for **Norovari (Pty) Ltd**. In PayFast, go to Settings → Developer Settings, set a passphrase (letters and numbers only), and switch on **Tokenization** under Recurring Billing / Subscriptions. Then in Vercel:
+  - add `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY` and `PAYFAST_PASSPHRASE`
+  - to test first, also add `PAYFAST_SANDBOX=true` with the sandbox merchant details; remove it for live
+  - redeploy. Payment results arrive at `https://<domain>/api/payfast/notify` automatically.
 
   Renewals charge the saved card token monthly. If a payment fails, the club gets 7 days' grace and then moves to Free.
 
@@ -112,9 +112,9 @@ Without a till file, managers can type in the till report instead, and staff can
 app/                 pages and server actions (app/actions.ts)
   page.tsx           front page        demo/        open demo
   today/ shifts/ exceptions/ settings/ billing/ reports/ admin/
-  api/paystack/webhook   api/cron/billing
+  api/payfast/notify     api/cron/billing
 components/          OwnerShiftView (the six owner screens), forms
-lib/                 plans.ts, paystack.ts, notify.ts, calculations, supabase clients
+lib/                 plans.ts, payfast.ts, notify.ts, calculations, supabase clients
 supabase/migrations/ schema, security, workflow, billing, specials
 tests/               database and formula tests
 ```

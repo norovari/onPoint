@@ -4,7 +4,6 @@
 // RLS policies decide what is allowed. Nothing here uses a service-role key.
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import Decimal from "decimal.js";
 import { createClient, requireSession } from "@/lib/supabase/server";
 import type { ParsedLine } from "@/lib/pos/csv";
@@ -478,48 +477,17 @@ export async function updateTolerances(_: ActionState, f: FormData): Promise<Act
 // ---------------------------------------------------------------------------
 // Billing (owner) and admin
 // ---------------------------------------------------------------------------
-async function siteUrl() {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  return `${proto}://${host}`;
-}
-
 export async function startCheckout(_: ActionState, f: FormData): Promise<ActionState> {
-  const { supabase, businessId, role, businessName } = await requireSession();
+  const { supabase, businessId, role } = await requireSession();
   if (role !== "owner") return { error: "Only the owner can manage the plan." };
   const plan = str(f, "plan");
   if (!["starter", "business", "multi_site"].includes(plan)) return { error: "Choose a plan." };
-  if (!process.env.PAYSTACK_SECRET_KEY) return { error: "Online payment isn’t switched on yet. Please contact OnPoint." };
+  const { payfastConfigured } = await import("@/lib/payfast");
+  if (!payfastConfigured()) return { error: "Online payment isn’t switched on yet. Please contact OnPoint." };
 
   const { data: inv, error } = await supabase.rpc("billing_create_invoice", { p_business: businessId, p_plan: plan, p_method: "card" });
   if (error) return { error: friendly(error) };
-  const payment = inv as { id: string; reference: string; subscription_ref: string; amount: number };
-
-  const { data: user } = await supabase.auth.getUser();
-  const { initializeTransaction } = await import("@/lib/paystack");
-  let url: string;
-  try {
-    const tx = await initializeTransaction({
-      email: user.user?.email ?? "",
-      amountCents: Math.round(Number(payment.amount) * 100),
-      reference: payment.reference,
-      callbackUrl: `${await siteUrl()}/billing/callback`,
-      metadata: {
-        business_id: businessId, plan, payment_id: payment.id, subscription_reference: payment.subscription_ref,
-        custom_fields: [
-          { display_name: "OnPoint reference", variable_name: "subscription_reference", value: payment.subscription_ref },
-          { display_name: "Business", variable_name: "business", value: businessName },
-          { display_name: "Plan", variable_name: "plan", value: plan },
-        ],
-      },
-    });
-    url = tx.authorization_url;
-  } catch (e) {
-    return { error: `Couldn’t start the card payment: ${(e as Error).message}` };
-  }
-  redirect(url);
+  redirect(`/billing/pay/${(inv as { id: string }).id}`);
 }
 
 export async function adminSetPlan(_: ActionState, f: FormData): Promise<ActionState> {

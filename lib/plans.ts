@@ -53,4 +53,5 @@ export const planName = (id: string | null | undefined) => PLANS.find((p) => p.i
 export const LEGAL_NAME = process.env.NEXT_PUBLIC_LEGAL_NAME ?? "Norovari (Pty) Ltd t/a OnPoint";
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "";
 
-export const cardConfigured = () => Boolean(process.env.PAYSTACK_SECRET_KEY);
+export const cardConfigured = () =>
+  Boolean(process.env.PAYFAST_MERCHANT_ID && process.env.PAYFAST_MERCHANT_KEY && process.env.PAYFAST_PASSPHRASE);

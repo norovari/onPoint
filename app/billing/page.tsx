@@ -8,7 +8,7 @@ import { when } from "@/lib/labels";
 
 export const metadata = { title: "Plan" };
 
-export default async function Billing({ searchParams }: { searchParams: Promise<{ paid?: string; failed?: string; check?: string }> }) {
+export default async function Billing({ searchParams }: { searchParams: Promise<{ paid?: string; failed?: string; check?: string; cancelled?: string }> }) {
   const q = await searchParams;
   const s = await requireSession();
   const { supabase, businessId, role } = s;
@@ -31,7 +31,8 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
       <h1>Your plan</h1>
       {q.paid && <p className="notice ok">Payment received. Thank you.</p>}
       {q.failed && <p className="notice error">The card payment didn’t go through. Try again, or use a different card.</p>}
-      {q.check && <p className="notice">We couldn’t confirm the payment yet. If money left your account, it will show here within a few minutes.</p>}
+      {q.check && <p className="notice">Thanks. Once PayFast confirms your payment it shows under Payments below, usually within a minute. Refresh this page to check.</p>}
+      {q.cancelled && <p className="notice">You left PayFast before paying. Nothing was charged.</p>}
 
       <div className="sheet">
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
@@ -72,7 +73,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
                 {p.launch_discount_open && <p className="small muted" style={{ margin: "2px 0 0" }}>Normally {formatZar(x.price)}. {LAUNCH_DISCOUNT.pct}% off for {LAUNCH_DISCOUNT.months} months.</p>}
                 <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{x.features.map((f) => <li key={f}>{f}</li>)}</ul>
                 <div className="row" style={{ marginTop: 12, flexWrap: "wrap" }}>
-                  {card && <Submit name="method" value="card">Subscribe and pay by card</Submit>}
+                  {card && <Submit name="method" value="card">Subscribe and pay by card (PayFast)</Submit>}
                 </div>
               </ActionForm>
             );
