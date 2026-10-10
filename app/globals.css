@@ -12,10 +12,10 @@
   --signal: #2f5bea;      /* actions */
   --on-signal: #ffffff;
   --matched: #1f7a5a;     /* on point */
-  --variance: #b4235a;    /* needs review */
+  --variance: #c2410c;    /* needs review (orange, not pink) */
   --pending: #8a6a00;     /* waiting on evidence */
   --matched-tint: #e3f2ec;
-  --variance-tint: #f8e4ec;
+  --variance-tint: #fbe6d9;
   --pending-tint: #f6efd8;
   --radius-input: 6px;
   --radius-sheet: 12px;
@@ -32,10 +32,10 @@
     --signal: #7d9bff;
     --on-signal: #0d1520;
     --matched: #4cc497;
-    --variance: #f07aa6;
+    --variance: #ff9a3c;
     --pending: #e0b84a;
     --matched-tint: #173329;
-    --variance-tint: #3a1a27;
+    --variance-tint: #3a2512;
     --pending-tint: #332b12;
   }
 }

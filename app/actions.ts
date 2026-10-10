@@ -4,9 +4,12 @@
 // RLS policies decide what is allowed. Nothing here uses a service-role key.
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Decimal from "decimal.js";
 import { createClient, requireSession } from "@/lib/supabase/server";
 import type { ParsedLine } from "@/lib/pos/csv";
+import { sha256Hex } from "@/lib/pos/csv";
+import { sendShiftAlert } from "@/lib/notify";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -38,7 +41,7 @@ export async function createBusiness(_: ActionState, f: FormData): Promise<Actio
   });
   if (error) return { error: friendly(error) };
   if (f.get("demo") === "on") await supabase.rpc("load_demo_catalogue", { p_business: biz });
-  redirect("/");
+  redirect("/today");
 }
 
 // ---------------------------------------------------------------------------
@@ -221,10 +224,13 @@ export async function importPos(input: {
 }
 
 export async function submitClosing(_: ActionState, f: FormData): Promise<ActionState> {
-  const { supabase } = await requireSession();
+  const { supabase, businessName, businessId } = await requireSession();
   const shiftId = str(f, "shift_id");
   const cash = money(str(f, "counted_cash"));
   if (cash === null) return { error: "Count the cash in the till and enter the total." };
+  const cardRaw = str(f, "card_machine_total");
+  const card = cardRaw === "" ? null : money(cardRaw);
+  if (cardRaw !== "" && card === null) return { error: "Enter the card machine total as a number, or leave it empty if you have no card machine." };
   const checklist = Object.fromEntries(
     ["till_closed", "fridges_ok", "keys_returned", "deliveries_filed"].map((k) => [k, f.get(k) === "on"]),
   );
@@ -233,10 +239,144 @@ export async function submitClosing(_: ActionState, f: FormData): Promise<Action
     p_counted_cash: cash,
     p_checklist: checklist,
     p_notes: str(f, "notes") || null,
+    p_card_machine_total: card,
   });
   if (error) return { error: friendly(error) };
+
+  // Email the owner and managers if the shift doesn't tally (only when email is set up)
+  const { data: open } = await supabase
+    .from("exceptions")
+    .select("exception_type, severity")
+    .eq("shift_id", shiftId)
+    .eq("status", "open")
+    .neq("severity", "info");
+  const { data: plan } = await supabase.rpc("business_plan", { p_business: businessId });
+  if (open?.length && (plan as { plan: string } | null)?.plan !== "free") {
+    const { data: recipients } = await supabase.rpc("shift_alert_recipients", { p_shift: shiftId });
+    await sendShiftAlert({
+      to: ((recipients ?? []) as { email: string }[]).map((r) => r.email),
+      businessName,
+      shiftId,
+      problems: open.length,
+    });
+  }
   revalidatePath(`/shifts/${shiftId}`);
   return { ok: "Shift submitted for manager review." };
+}
+
+export async function recordSpecialSale(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const shiftId = str(f, "shift_id");
+  const deals = Number(str(f, "deals"));
+  if (!Number.isInteger(deals) || deals < 1) return { error: "Enter how many deals were sold, for example 3." };
+  const mix: { product_id: string; qty: string }[] = [];
+  for (const [k, v] of f.entries()) {
+    if (!k.startsWith("mix:")) continue;
+    const q = String(v).trim();
+    if (q === "" || q === "0") continue;
+    if (!DEC.test(q)) return { error: `"${q}" is not a valid quantity.` };
+    mix.push({ product_id: k.slice(4), qty: q });
+  }
+  if (!mix.length) return { error: "Enter how many of each item went out with the deals." };
+  const { data, error } = await supabase.rpc("record_special_sale", { p_shift: shiftId, p_special: str(f, "special_id"), p_deals: deals, p_mix: mix });
+  if (error) return { error: friendly(error) };
+  revalidatePath(`/shifts/${shiftId}`);
+  const r = data as { deals: number; items: number; taken: number };
+  return { ok: `Recorded ${r.deals} deal${r.deals === 1 ? "" : "s"}, ${r.items} items out.` };
+}
+
+// For tills without an export: the manager types the till's end-of-day report.
+export async function enterTillSales(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const shiftId = str(f, "shift_id");
+  const cash = money(str(f, "till_cash"));
+  const card = money(str(f, "till_card") || "0");
+  if (cash === null || card === null) return { error: "Enter the cash and card totals from the till report." };
+
+  const { data: products } = await supabase.from("products").select("id, sku, pos_code, product_prices(unit_price, valid_from, valid_to)").eq("active", true);
+  const now = new Date().toISOString();
+  const lines: Record<string, unknown>[] = [];
+  let total = new Decimal(0);
+  for (const p of products ?? []) {
+    const q = str(f, `sold:${p.id}`);
+    if (q === "" || q === "0") continue;
+    if (!DEC.test(q)) return { error: `"${q}" is not a valid quantity.` };
+    const price = (p.product_prices as { unit_price: string; valid_from: string; valid_to: string | null }[])
+      .filter((x) => !x.valid_to || x.valid_to > now)
+      .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0]?.unit_price;
+    if (price === undefined) return { error: "A product has no price yet. Set prices in Settings first." };
+    const gross = new Decimal(q).times(price).toDecimalPlaces(2);
+    total = total.plus(gross);
+    lines.push({
+      external_ref: `till-${shiftId}-${p.id}`, // one till-report line per product per shift
+      transaction_at: now,
+      pos_code: p.pos_code ?? p.sku,
+      quantity: q,
+      gross_amount: gross.toFixed(2),
+      discount_amount: "0",
+      tax_amount: "0",
+      payment_method: "other",
+    });
+  }
+  if (lines.length) {
+    // Products without a POS code are matched by SKU for hand-entered sales
+    const payload = JSON.stringify(lines);
+    const { data: imp, error } = await supabase.rpc("import_pos_batch", {
+      p_shift: shiftId, p_file_name: "Till report (entered by hand)", p_file_sha256: await sha256Hex(payload),
+      p_storage_path: null, p_pos_total_sales: total.toFixed(2), p_pos_total_refunds: "0.00", p_lines: lines,
+    });
+    if (error) return { error: friendly(error) };
+    if ((imp as { duplicates_skipped: number }).duplicates_skipped > 0) {
+      return { error: "The till report was already entered for this shift. Totals already saved can’t be changed; explain any correction on the alert after closing." };
+    }
+  }
+  const { error: tErr } = await supabase.rpc("record_till_totals", { p_shift: shiftId, p_cash: cash, p_card: card });
+  if (tErr) return { error: friendly(tErr) };
+  revalidatePath(`/shifts/${shiftId}`);
+  return { ok: lines.length ? `Till report saved: ${lines.length} products, cash and card totals.` : "Cash and card totals saved." };
+}
+
+export async function addSpecial(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase, businessId } = await requireSession();
+  const price = money(str(f, "deal_price"));
+  const per = Number(str(f, "items_per_deal"));
+  const productIds = f.getAll("product_ids").map(String);
+  if (!str(f, "name")) return { error: "Name the special, for example “Any 2 pre-rolls for R200”." };
+  if (price === null) return { error: "Enter the deal price." };
+  if (!Number.isInteger(per) || per < 1) return { error: "Enter how many items are in one deal." };
+  if (!productIds.length) return { error: "Tick the products customers can choose from." };
+  const { data, error } = await supabase
+    .from("specials")
+    .insert({ business_id: businessId, name: str(f, "name"), code: str(f, "code") || null, deal_price: price, items_per_deal: per })
+    .select("id")
+    .single();
+  if (error) {
+    if (error.message.includes("duplicate")) return { error: "That till code is already used by another special." };
+    return { error: error.message.includes("row-level") ? "Only the owner can set up specials." : friendly(error) };
+  }
+  const { error: pErr } = await supabase.from("special_products").insert(productIds.map((id) => ({ special_id: data.id, product_id: id })));
+  if (pErr) return { error: friendly(pErr) };
+  revalidatePath("/settings");
+  return { ok: "Special added. Staff can now record it during a shift." };
+}
+
+export async function toggleSpecial(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const { error } = await supabase.from("specials").update({ active: str(f, "active") === "true" }).eq("id", str(f, "special_id"));
+  if (error) return { error: friendly(error) };
+  revalidatePath("/settings");
+  return { ok: str(f, "active") === "true" ? "Special switched on." : "Special switched off." };
+}
+
+export async function setLowStock(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const v = str(f, "low_stock_level");
+  if (v !== "" && !DEC.test(v)) return { error: "Enter a number, or leave it empty for no warning." };
+  const { data, error } = await supabase.from("products").update({ low_stock_level: v === "" ? null : v }).eq("id", str(f, "product_id")).select("id");
+  if (error) return { error: friendly(error) };
+  if (!data?.length) return { error: "Only the owner can change this." };
+  revalidatePath("/settings");
+  return { ok: "Saved." };
 }
 
 export async function reviewShift(_: ActionState, f: FormData): Promise<ActionState> {
@@ -333,4 +473,69 @@ export async function updateTolerances(_: ActionState, f: FormData): Promise<Act
   if (!data?.length) return { error: "Only the owner can change tolerances." };
   revalidatePath("/settings");
   return { ok: "Tolerances saved. They apply to shifts submitted from now on." };
+}
+
+// ---------------------------------------------------------------------------
+// Billing (owner) and admin
+// ---------------------------------------------------------------------------
+async function siteUrl() {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  return `${proto}://${host}`;
+}
+
+export async function startCheckout(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase, businessId, role } = await requireSession();
+  if (role !== "owner") return { error: "Only the owner can manage the plan." };
+  const plan = str(f, "plan");
+  const method = str(f, "method");
+  if (!["starter", "business", "multi_site"].includes(plan)) return { error: "Choose a plan." };
+  if (method === "card" && !process.env.PAYSTACK_SECRET_KEY) return { error: "Card payments aren’t switched on yet. Choose EFT." };
+
+  const { data: inv, error } = await supabase.rpc("billing_create_invoice", { p_business: businessId, p_plan: plan, p_method: method });
+  if (error) return { error: friendly(error) };
+  const invoice = inv as { id: string; reference: string; amount: number };
+
+  if (method === "eft") redirect(`/billing/invoice/${invoice.id}`);
+
+  const { data: user } = await supabase.auth.getUser();
+  const { initializeTransaction } = await import("@/lib/paystack");
+  let url: string;
+  try {
+    const tx = await initializeTransaction({
+      email: user.user?.email ?? "",
+      amountCents: Math.round(Number(invoice.amount) * 100),
+      reference: invoice.reference,
+      callbackUrl: `${await siteUrl()}/billing/callback`,
+      metadata: { business_id: businessId, plan, invoice_id: invoice.id },
+    });
+    url = tx.authorization_url;
+  } catch (e) {
+    return { error: `Couldn’t start the card payment: ${(e as Error).message}` };
+  }
+  redirect(url);
+}
+
+export async function adminMarkPaid(_: ActionState, f: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_mark_invoice_paid", { p_invoice: str(f, "invoice_id") });
+  if (error) return { error: friendly(error) };
+  revalidatePath("/admin");
+  const r = data as { invoice: number; already_paid: boolean };
+  return { ok: r.already_paid ? `Invoice ${r.invoice} was already paid.` : `Invoice ${r.invoice} marked paid. Their plan is active for a month.` };
+}
+
+export async function adminSetPlan(_: ActionState, f: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const days = Number(str(f, "days"));
+  if (!Number.isFinite(days) || days < 0 || days > 400) return { error: "Enter days between 0 and 400." };
+  const end = new Date(Date.now() + days * 86400_000).toISOString();
+  const { error } = await supabase.rpc("admin_set_subscription", {
+    p_business: str(f, "business_id"), p_plan: str(f, "plan"), p_status: str(f, "status"), p_period_end: end,
+  });
+  if (error) return { error: friendly(error) };
+  revalidatePath("/admin");
+  return { ok: "Plan updated." };
 }

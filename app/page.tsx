@@ -1,115 +1,82 @@
 import Link from "next/link";
-import { requireSession, isManager } from "@/lib/supabase/server";
-import { Shell } from "@/components/Shell";
-import { ActionForm, Submit } from "@/components/ActionForm";
-import { openShift } from "@/app/actions";
-import { SHIFT_STATUS, when } from "@/lib/labels";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { LAUNCH_DISCOUNT, LEGAL_NAME, PLANS, TRIAL_DAYS } from "@/lib/plans";
 
-export default async function Today() {
-  const s = await requireSession();
-  const { supabase } = s;
-
-  const [{ data: locations }, { data: inProgress }, { data: recent }, { count: openExceptions }, { count: products }] = await Promise.all([
-    supabase.from("locations").select("id, name, standard_float").eq("active", true).order("name"),
-    supabase
-      .from("shifts")
-      .select("id, location_id, status, opened_at, profiles!shifts_opened_by_fkey(full_name)")
-      .neq("status", "approved")
-      .order("opened_at", { ascending: false }),
-    supabase.from("shifts").select("id, status, opened_at, locations(name)").order("opened_at", { ascending: false }).limit(5),
-    supabase.from("exceptions").select("id", { count: "exact", head: true }).in("status", ["open", "explained"]),
-    supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true),
-  ]);
-
-  const busy = new Set((inProgress ?? []).map((x) => x.location_id));
-  const free = (locations ?? []).filter((l) => !busy.has(l.id));
-  const waiting = (inProgress ?? []).filter((x) => x.status === "closing_submitted");
+export default async function Home() {
+  // Signed-in users go straight to their shop
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    if (data.user) redirect("/today");
+  } catch (e) {
+    if ((e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw e;
+  }
 
   return (
-    <Shell businessName={s.businessName}>
-      <h1>Today</h1>
-      <p className="lede">Hi {s.fullName.split(" ")[0] || "there"}. Here’s where every till stands.</p>
-
-      {products === 0 && (
-        <p className="notice">
-          Add your products before the first shift.{" "}
-          {s.role === "owner" ? <Link href="/settings">Add products</Link> : "Ask the owner to add them."}
+    <>
+      <header className="topbar">
+        <span className="brand">On<b>Point</b></span>
+        <nav className="nav" aria-label="Main">
+          <Link href="/pricing">Pricing</Link>
+          <Link href="/login">Sign in</Link>
+        </nav>
+      </header>
+      <main className="wrap">
+        <h1 style={{ fontSize: 38, marginTop: 28 }}>Does your stock and money tally after every shift?</h1>
+        <p className="lede" style={{ fontSize: 19 }}>
+          OnPoint is stock and cash control for dispensaries. Staff count at close. OnPoint works out what should be there, and you get an alert the moment stock or money goes missing.
         </p>
-      )}
 
-      {(inProgress ?? []).map((x) => {
-        const st = SHIFT_STATUS[x.status];
-        const loc = locations?.find((l) => l.id === x.location_id);
-        const opener = (x.profiles as unknown as { full_name: string } | null)?.full_name;
-        return (
-          <Link key={x.id} href={`/shifts/${x.id}`} className="sheet" style={{ display: "block", color: "inherit", textDecoration: "none" }}>
-            <span className="status" data-status={st.tone}>{st.label}</span>
-            <h2 style={{ margin: "8px 0 2px" }}>{loc?.name ?? "Shift"}</h2>
-            <p className="muted small" style={{ margin: 0 }}>
-              Opened {when(x.opened_at)}{opener ? ` by ${opener}` : ""}
-            </p>
-            <p style={{ margin: "10px 0 0", fontWeight: 700, color: "var(--signal)" }}>
-              {x.status === "closing_submitted" && isManager(s.role) ? "Review shift" : "Continue shift"}
-            </p>
-          </Link>
-        );
-      })}
-
-      {free.length > 0 && (
-        <ActionForm action={openShift} className="sheet">
-          <h2 style={{ marginTop: 0 }}>Open a shift</h2>
-          <p className="muted small" style={{ marginTop: 0 }}>
-            Count the cash in the till first. You’ll count stock on the next screen.
-          </p>
-          {free.length > 1 ? (
-            <>
-              <label htmlFor="location">Location</label>
-              <select id="location" name="location">
-                {free.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </>
-          ) : (
-            <input type="hidden" name="location" value={free[0].id} />
-          )}
-          <label htmlFor="float">Cash in the till now (R)</label>
-          <input id="float" name="float" type="number" inputMode="decimal" step="0.01" min="0" required placeholder={String(free[0].standard_float)} />
-          <div style={{ marginTop: 14 }}>
-            <Submit>Open shift</Submit>
+        <form action="/demo" method="get" className="sheet" style={{ borderWidth: 2 }}>
+          <label htmlFor="b" style={{ marginTop: 0, fontSize: 17 }}>Your dispensary’s name</label>
+          <input id="b" name="b" required maxLength={80} placeholder="e.g. Green Leaf Club" autoComplete="organization" />
+          <div style={{ marginTop: 12 }}>
+            <button type="submit" style={{ width: "100%" }}>See it for my shop</button>
           </div>
-        </ActionForm>
-      )}
+          <p className="muted small" style={{ margin: "10px 0 0" }}>Opens a sample shift with your name on it. No sign-up needed.</p>
+        </form>
 
-      <div className="figures">
-        <Link href="/exceptions" className="figure" style={{ color: "inherit", textDecoration: "none" }}>
-          <div className="value" style={{ color: openExceptions ? "var(--variance)" : "var(--matched)" }}>{openExceptions ?? 0}</div>
-          <div className="label">open exceptions</div>
-        </Link>
-        {isManager(s.role) && (
-          <div className="figure">
-            <div className="value">{waiting.length}</div>
-            <div className="label">waiting for review</div>
-          </div>
-        )}
-      </div>
-
-      <h2>Recent shifts</h2>
-      {recent?.length ? (
+        <h2>What you see after every shift</h2>
         <ul className="lines">
-          {recent.map((r) => {
-            const st = SHIFT_STATUS[r.status];
-            return (
-              <li key={r.id} className="line" data-status={st.tone === "neutral" ? undefined : st.tone}>
-                <Link href={`/shifts/${r.id}`} className="name">
-                  {(r.locations as unknown as { name: string } | null)?.name}, {when(r.opened_at)}
-                </Link>
-                <span className="status" data-status={st.tone}>{st.label}</span>
-              </li>
-            );
-          })}
+          {[
+            ["Last shift stock", "What was on the shelf when the shift started."],
+            ["In stock now", "What staff counted at close, next to what should be there."],
+            ["What each product made", "Money per product, and whether the cash and card machine tally."],
+            ["Stock for next shift", "What the next shift starts with, and what’s running low."],
+            ["Today’s specials", "Each deal tallied on its own: what sold, the mix people chose, what it cost you."],
+          ].map(([t, d]) => (
+            <li key={t} className="line" data-status="matched">
+              <span className="name">{t}</span>
+              <span className="meta">{d}</span>
+            </li>
+          ))}
         </ul>
-      ) : (
-        <p className="muted">No shifts yet. Open your first one above.</p>
-      )}
-    </Shell>
+
+        <h2>Alerts you have to clear</h2>
+        <p>When stock and money don’t tally, a product goes into minus, or a special gives away more than it should, the owner gets an alert. It stays open until someone fixes it or writes what happened.</p>
+
+        <h2>Pricing</h2>
+        <p className="muted">
+          {TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe within {LAUNCH_DISCOUNT.hours} hours of signing up and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.
+        </p>
+        <div className="figures">
+          {PLANS.map((p) => (
+            <div key={p.id} className="figure">
+              <div className="value">{p.price ? `R${p.price.toLocaleString("en-ZA")}` : "R0"}</div>
+              <div className="label">{p.name}, {p.blurb.toLowerCase()}</div>
+            </div>
+          ))}
+        </div>
+        <p><Link href="/pricing">Compare plans</Link></p>
+
+        <h2>Your numbers stay yours</h2>
+        <p>Only your team sees your stock, sales and cash. OnPoint’s own admin view shows your plan and how often shifts are closed, never your figures.</p>
+
+        <footer className="muted small" style={{ marginTop: 40, borderTop: "1px solid var(--rule)", paddingTop: 16 }}>
+          OnPoint is a service of {LEGAL_NAME}. <Link href="/terms">Terms, privacy and refunds</Link>
+        </footer>
+      </main>
+    </>
   );
 }

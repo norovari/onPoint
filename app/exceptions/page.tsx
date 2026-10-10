@@ -6,7 +6,7 @@ import { updateException } from "@/app/actions";
 import { formatQty, formatZar } from "@/lib/calculations";
 import { EXCEPTION_TYPE, when } from "@/lib/labels";
 
-export const metadata = { title: "Exceptions" };
+export const metadata = { title: "Alerts" };
 
 export default async function Exceptions({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const { show } = await searchParams;
@@ -23,7 +23,7 @@ export default async function Exceptions({ searchParams }: { searchParams: Promi
 
   return (
     <Shell businessName={s.businessName}>
-      <h1>Exceptions</h1>
+      <h1>Alerts</h1>
       <p className="lede">
         Differences the system found between what was recorded and what was counted or settled. A difference is something to look into. It is not proof of wrongdoing.
       </p>

@@ -1,7 +1,7 @@
 import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
-import { addMember, addProduct, deactivateMember, updateTolerances } from "@/app/actions";
+import { addMember, addProduct, addSpecial, deactivateMember, setLowStock, toggleSpecial, updateTolerances } from "@/app/actions";
 import { formatZar } from "@/lib/calculations";
 
 export const metadata = { title: "Settings" };
@@ -11,8 +11,9 @@ export default async function Settings() {
   const owner = s.role === "owner";
   const { supabase } = s;
 
+  const { data: specials } = await supabase.from("specials").select("id, name, code, deal_price, items_per_deal, active, special_products(product_id)").order("name");
   const [{ data: products }, { data: team }, { data: biz }, { data: sub }] = await Promise.all([
-    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, active, product_prices(unit_price, valid_from, valid_to)").order("sku"),
+    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, active, low_stock_level, product_prices(unit_price, valid_from, valid_to)").order("sku"),
     isManager(s.role)
       ? supabase.from("memberships").select("user_id, role, active, profiles(full_name)").eq("business_id", s.businessId)
       : Promise.resolve({ data: [] as never[] }),
@@ -31,7 +32,7 @@ export default async function Settings() {
       <p className="muted small">The POS code must match the product code in your POS export so sales can be matched to stock.</p>
       <div className="scroll">
         <table className="data">
-          <thead><tr><th>Product</th><th>POS code</th><th>Counted in</th><th className="num">Price</th></tr></thead>
+          <thead><tr><th>Product</th><th>POS code</th><th>Counted in</th><th className="num">Price</th><th>Warn when below</th></tr></thead>
           <tbody>
             {(products ?? []).map((p) => {
               const price = currentPrice(p as never);
@@ -41,6 +42,16 @@ export default async function Settings() {
                   <td>{p.pos_code || <span className="muted">not set</span>}</td>
                   <td>{p.base_unit === "g" ? "grams" : "units"}</td>
                   <td className="num">{price === undefined ? "—" : p.base_unit === "g" ? `${formatZar(Number(price) * 1000)}/kg` : formatZar(price)}</td>
+                  <td>
+                    {owner ? (
+                      <ActionForm action={setLowStock} hidden={{ product_id: p.id }}>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input name="low_stock_level" aria-label={`Warn when ${p.name} is below`} inputMode="decimal" defaultValue={p.low_stock_level ?? ""} style={{ width: 80, padding: "6px 8px" }} />
+                          <Submit className="quiet">Save</Submit>
+                        </div>
+                      </ActionForm>
+                    ) : (p.low_stock_level ?? "—")}
+                  </td>
                 </tr>
               );
             })}
@@ -65,6 +76,49 @@ export default async function Settings() {
             <div><label htmlFor="p-price">Price (R per unit or per kg)</label><input id="p-price" name="price" inputMode="decimal" required /></div>
           </div>
           <div style={{ marginTop: 12 }}><Submit>Add product</Submit></div>
+        </ActionForm>
+      )}
+
+
+      <h2>Specials</h2>
+      <p className="muted small">Set up your deals once (for example “Any 2 indoor pre-rolls for R200”). OnPoint tallies each one on its own: deals sold, the mix people chose, the discount, and any extra items that went out.</p>
+      {(specials ?? []).length > 0 && (
+        <ul className="lines">
+          {(specials ?? []).map((sp) => (
+            <li key={sp.id} className="line" data-status={sp.active ? "matched" : undefined}>
+              <span className="name">{sp.name}</span>
+              <span className="small muted">{formatZar(sp.deal_price)} for {sp.items_per_deal}</span>
+              <span className="meta">
+                {(sp.special_products as { product_id: string }[]).map((x) => (products ?? []).find((p) => p.id === x.product_id)?.name).filter(Boolean).join(", ")}
+                {sp.code ? `. Till code ${sp.code}` : ""}
+                {owner && (
+                  <ActionForm action={toggleSpecial} hidden={{ special_id: sp.id, active: String(!sp.active) }}>
+                    <Submit className="quiet">{sp.active ? "Switch off" : "Switch on"}</Submit>
+                  </ActionForm>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {owner && (
+        <ActionForm action={addSpecial} className="sheet">
+          <h3>Add a special</h3>
+          <label htmlFor="sp-name">Name</label>
+          <input id="sp-name" name="name" placeholder="Any 2 indoor pre-rolls for R200" required />
+          <div className="row">
+            <div><label htmlFor="sp-price">Deal price (R)</label><input id="sp-price" name="deal_price" inputMode="decimal" required /></div>
+            <div><label htmlFor="sp-per">Items per deal</label><input id="sp-per" name="items_per_deal" type="number" min="1" step="1" defaultValue="2" required /></div>
+          </div>
+          <label htmlFor="sp-code">Till code <span className="hint">optional: how the deal appears in your till export</span></label>
+          <input id="sp-code" name="code" />
+          <p style={{ fontWeight: 700, fontSize: 15, margin: "12px 0 4px" }}>Customers can choose from</p>
+          {(products ?? []).filter((p) => p.active).map((p) => (
+            <label key={p.id} style={{ display: "flex", gap: 10, alignItems: "center", fontWeight: 400, margin: "4px 0" }}>
+              <input type="checkbox" name="product_ids" value={p.id} style={{ width: "auto" }} /> {p.name}
+            </label>
+          ))}
+          <div style={{ marginTop: 12 }}><Submit>Add special</Submit></div>
         </ActionForm>
       )}
 
@@ -125,11 +179,8 @@ export default async function Settings() {
 
       {owner && sub && (
         <>
-          <h2>Subscription</h2>
-          <p>
-            {sub.plan} plan, {sub.status}
-            {sub.current_period_end ? ` until ${new Date(sub.current_period_end).toLocaleDateString("en-ZA")}` : ""}.
-          </p>
+          <h2>Plan</h2>
+          <p><a href="/billing">See your plan and payments</a></p>
         </>
       )}
     </Shell>

@@ -4,11 +4,13 @@ import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { PosImport } from "@/components/PosImport";
-import { ReconView, type Recon } from "@/components/ReconView";
+import { OwnerShiftView, type ShiftException } from "@/components/OwnerShiftView";
 import {
   activateShift,
   approveMovement,
+  enterTillSales,
   recordCashEvent,
+  recordSpecialSale,
   recordMovement,
   recordSettlement,
   reviewShift,
@@ -52,6 +54,10 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       supabase.from("approvals").select("decision, notes, decided_at, profiles(full_name)").eq("shift_id", id).order("decided_at", { ascending: false }),
       supabase.from("settlement_records").select("id, payment_method, provider, provider_reference, net_amount").eq("shift_id", id),
     ]);
+  const [{ data: specials }, { data: specialSales }] = await Promise.all([
+    supabase.from("specials").select("id, name, deal_price, items_per_deal, special_products(product_id)").eq("active", true).order("name"),
+    supabase.from("special_sales").select("id, deals, created_at, specials(name)").eq("shift_id", id).order("created_at"),
+  ]);
 
   const status = shift.status as string;
   const st = SHIFT_STATUS[status];
@@ -71,10 +77,29 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   const canEnter = ["opening", "active", "correction_requested"].includes(status);
   const showRecon = ["closing_submitted", "correction_requested", "approved"].includes(status);
 
-  let recon: Recon | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let recon: any = null;
+  let exceptions: ShiftException[] = [];
+  const prices: Record<string, string> = {};
+  let compareAllowed = false;
   if (showRecon) {
-    const { data } = await supabase.rpc("shift_reconciliation", { p_shift: id });
+    const { data: plan } = await supabase.rpc("business_plan", { p_business: s.businessId });
+    compareAllowed = ["business", "multi_site"].includes((plan as { plan: string } | null)?.plan ?? "");
+    const [{ data }, { data: ex }, { data: pr }] = await Promise.all([
+      supabase.rpc("shift_reconciliation", { p_shift: id }),
+      supabase
+        .from("exceptions")
+        .select("id, exception_type, status, severity, expected, actual, difference, explanation, payment_method, products(name, base_unit)")
+        .eq("shift_id", id)
+        .order("created_at"),
+      supabase.from("product_prices").select("product_id, unit_price, valid_from, valid_to").is("valid_to", null).order("valid_from"),
+    ]);
     recon = data;
+    exceptions = (ex ?? []).map((e) => {
+      const p = e.products as unknown as { name: string; base_unit: string } | null;
+      return { ...e, product_name: p?.name ?? null, base_unit: p?.base_unit ?? null } as ShiftException;
+    });
+    for (const r of pr ?? []) prices[r.product_id] = String(r.unit_price);
   }
 
   const loc = (shift.locations as unknown as { name: string } | null)?.name;
@@ -127,7 +152,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       {/* ---------------- During the shift ---------------- */}
       {(status === "active" || status === "correction_requested") && (
         <>
-          <h2>Stock movements</h2>
+          <h2>Deliveries, wastage and other stock changes</h2>
           <p className="muted small">
             Record anything that changes stock other than a sale: deliveries, transfers, wastage. Sales come from the POS export.
           </p>
@@ -162,9 +187,65 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
             <div style={{ marginTop: 12 }}><Submit>Record movement</Submit></div>
           </ActionForm>
 
+          {(specials ?? []).length > 0 && (
+            <>
+              <h2>Specials sold</h2>
+              <p className="muted small">If your till export doesn’t show deals, record each batch of specials here: how many deals, and how many of each item went out.</p>
+              {(specials ?? []).map((sp) => {
+                const allowed = new Set((sp.special_products as { product_id: string }[]).map((x) => x.product_id));
+                return (
+                  <ActionForm key={sp.id} action={recordSpecialSale} hidden={{ shift_id: id, special_id: sp.id }} className="sheet">
+                    <h3>{sp.name}</h3>
+                    <p className="muted small" style={{ margin: "2px 0 8px" }}>{formatZar(sp.deal_price)} for {sp.items_per_deal} items</p>
+                    <label htmlFor={`deals-${sp.id}`}>Deals sold</label>
+                    <input id={`deals-${sp.id}`} name="deals" type="number" inputMode="numeric" min="1" step="1" required style={{ maxWidth: 160 }} />
+                    <p style={{ fontWeight: 700, fontSize: 15, margin: "12px 0 4px" }}>Items that went out</p>
+                    <ul className="lines">
+                      {(products ?? []).filter((p) => allowed.has(p.id)).map((p) => (
+                        <li key={p.id} className="line">
+                          <label htmlFor={`mix-${sp.id}-${p.id}`} className="name" style={{ margin: 0 }}>{p.name}</label>
+                          <input id={`mix-${sp.id}-${p.id}`} name={`mix:${p.id}`} type="number" inputMode="decimal" min="0" step="any" style={{ width: 110 }} />
+                        </li>
+                      ))}
+                    </ul>
+                    <div style={{ marginTop: 12 }}><Submit>Record specials</Submit></div>
+                  </ActionForm>
+                );
+              })}
+              {(specialSales ?? []).length > 0 && (
+                <p className="muted small">Recorded: {(specialSales ?? []).map((x) => `${(x.specials as unknown as { name: string } | null)?.name} × ${x.deals}`).join("; ")}</p>
+              )}
+            </>
+          )}
+
           {manager && (
             <>
-              <h2>POS sales</h2>
+              <h2>Till report</h2>
+              <p className="muted small">If your till can export a file, import it. If not, type the figures from the till’s end-of-day report.</p>
+              <details className="sheet">
+                <summary>Type in the till report</summary>
+                <ActionForm action={enterTillSales} hidden={{ shift_id: id }}>
+                  <p className="muted small">Quantity sold of each product at normal price (leave specials out; record them above). Amounts are worked out from your prices.</p>
+                  <ul className="lines">
+                    {(products ?? []).map((p) => (
+                      <li key={p.id} className="line">
+                        <label htmlFor={`sold-${p.id}`} className="name" style={{ margin: 0 }}>{p.name} <span className="hint">{p.base_unit === "g" ? "grams" : "units"}</span></label>
+                        <input id={`sold-${p.id}`} name={`sold:${p.id}`} type="number" inputMode="decimal" min="0" step="any" style={{ width: 110 }} />
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="row">
+                    <div><label htmlFor="till_cash">Cash sales on the till report (R)</label><input id="till_cash" name="till_cash" type="number" inputMode="decimal" step="0.01" min="0" required /></div>
+                    <div><label htmlFor="till_card">Card sales on the till report (R)</label><input id="till_card" name="till_card" type="number" inputMode="decimal" step="0.01" min="0" defaultValue="0" /></div>
+                  </div>
+                  <div style={{ marginTop: 12 }}><Submit>Save till report</Submit></div>
+                </ActionForm>
+              </details>
+              {(shift.till_cash_total !== null || shift.till_card_total !== null) && (
+                <p className="muted small">Till report saved: cash {formatZar(shift.till_cash_total)}, card {formatZar(shift.till_card_total)}.</p>
+              )}
+
+              <h2>Import till file</h2>
               <div className="sheet">
                 <PosImport shiftId={id} />
                 {(imports ?? []).length > 0 && (
@@ -198,7 +279,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                 )}
               </ActionForm>
 
-              <h2>Card and EFT settlement</h2>
+              <h2>Bank or card statement <span className="hint">optional</span></h2>
               <p className="muted small">
                 Enter figures from the bank or card-machine statement. If it hasn’t arrived yet, leave this. It will show as awaiting settlement, not as a loss.
               </p>
@@ -245,6 +326,9 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
             <label htmlFor="counted_cash">Cash counted in the till (R)</label>
             <input id="counted_cash" name="counted_cash" type="number" inputMode="decimal" step="0.01" min="0" required
               defaultValue={shift.counted_closing_cash ?? undefined} />
+            <label htmlFor="card_machine_total">Card machine end-of-day total (R) <span className="hint">leave empty if you have no card machine</span></label>
+            <input id="card_machine_total" name="card_machine_total" type="number" inputMode="decimal" step="0.01" min="0"
+              defaultValue={shift.card_machine_total ?? undefined} />
             <fieldset style={{ border: 0, padding: 0, margin: "12px 0 0" }}>
               <legend style={{ fontWeight: 700, fontSize: 15 }}>Handover checklist</legend>
               {[
@@ -271,7 +355,9 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       )}
 
       {/* ---------------- Review / approved ---------------- */}
-      {showRecon && recon && status !== "correction_requested" && <ReconView recon={recon} />}
+      {showRecon && recon && (status !== "correction_requested" || manager) && (
+        <OwnerShiftView recon={recon} exceptions={exceptions} prices={prices} canResolve={manager} closedBy={closer ?? ""} compareAllowed={compareAllowed} />
+      )}
 
       {status === "closing_submitted" && manager && (
         <>

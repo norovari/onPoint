@@ -1,11 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC = ["/login", "/auth"];
+const PUBLIC_PREFIXES = ["/login", "/signup", "/auth", "/demo", "/pricing", "/terms", "/api/paystack", "/api/cron"];
+const isPublic = (path: string) => path === "/" || PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
 
 // Refreshes the Supabase session cookie on every request and sends
+// signed-out visitors on private pages to /login. Webhook and cron routes skip
+// the session lookup entirely.
 // signed-out visitors to /login. Real authorisation happens in the database.
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -24,7 +28,7 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-  if (!data.user && !PUBLIC.some((p) => path.startsWith(p))) {
+  if (!data.user && !isPublic(path)) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
     login.search = "";

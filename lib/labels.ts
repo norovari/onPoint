@@ -15,12 +15,15 @@ export const RECON_STATUS: Record<string, string> = {
 };
 
 export const EXCEPTION_TYPE: Record<string, string> = {
-  stock_variance: "Stock difference",
-  cash_variance: "Cash difference",
-  settlement_variance: "Settlement difference",
+  stock_variance: "Stock doesn’t tally",
+  cash_variance: "Cash doesn’t tally",
+  settlement_variance: "Card machine doesn’t tally",
   sales_value_variance: "Price check",
-  opening_float_variance: "Opening float difference",
-  missing_evidence: "Missing evidence",
+  opening_float_variance: "Opening cash differs from last close",
+  missing_evidence: "Something is missing from the records",
+  special_mismatch: "A special doesn’t tally",
+  went_into_minus: "Went into minus",
+  low_stock: "Running low",
 };
 
 export const MOVEMENT_TYPE: Record<string, string> = {

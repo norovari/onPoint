@@ -1,218 +1,121 @@
 # OnPoint
 
-Shift-based stock, cash and settlement reconciliation for small retailers. OnPoint sits next to the shop's existing POS. It doesn't replace it.
+Stock and cash control for dispensaries. After every shift the owner sees, in plain words, whether stock and money tally. Every alert has to be fixed or explained before it closes.
 
-After every shift the owner can see what was recorded, what should be there, what was physically counted or settled, where it differs, and who reviewed it.
+Run by **Norovari (Pty) Ltd t/a OnPoint**.
 
-**Stack:** Next.js 16 (App Router, TypeScript) on Vercel, with Supabase (Postgres, Auth, Row Level Security) as the database.
+## What's in it
 
----
+**Public, no sign-up**
+- **Front page (`/`):** a dispensary types its name and gets a demo shift with its own name on it (`/demo`).
+- **Pricing (`/pricing`) and terms, privacy and refunds (`/terms`):** Paystack needs both pages before approving an account.
 
-## What's in this version
+**For each dispensary**
+- **Sign up with the business name:** they get a 14-day Business-plan trial with no card. The 24-hour launch offer gives 20% off the first 3 monthly payments.
+- **Staff:** blind opening and closing counts, cash count, card machine total, deliveries and wastage, specials sold.
+- **Managers:** import the till file, or type in the till's end-of-day report, then approve or return the shift.
+- **Owner screens for every shift:**
+  - Alerts
+  - Today's specials
+  - Last shift stock
+  - In stock now
+  - What each product made
+  - Stock for next shift
+- **Alerts:** stock and money don't tally (valued at selling price), cash short, card machine doesn't match, a special gives away extra items, a product went into minus, running low. They show in the app on every plan, and are emailed on paid plans once email is set up.
+- **Monthly report (Business plan and up):** what goes missing most, and on whose shifts.
+- **Plan page:** pay by card (Paystack, renews monthly) or EFT invoice.
 
-| Area | What it does |
-| --- | --- |
-| Accounts | Email + password sign-up, one-click business creation, owner adds staff/managers by email, deactivate leavers without losing history |
-| Opening | Count the float, blind-count opening stock (units or grams), compare with the previous close and flag differences |
-| During the shift | Record deliveries, transfers, wastage, damage, internal use, adjustments. Managers import the POS CSV, record cash drops/banking and card/EFT settlements |
-| Closing | Blind closing count, cash count, handover checklist and notes, then submit and lock |
-| Review | Manager sees every variance with its working, approves staff wastage, then approves or returns the shift with a reason. Recounts are new versions with a reason |
-| Exceptions | Register of every difference. Staff explain, managers resolve |
-| Reports | Printable shift report (save as PDF from the browser) and CSV export |
-| Settings | Products and prices (unit or per-kg), POS code mapping, team, variance tolerances |
+**For you (`/admin`)**
+- Only a confirmed sign-in as **nyorovai@gmail.com** opens it. Everyone else gets "not found". This is checked in the database, not just the page.
+- Shows every dispensary, its plan, trial end, payments, team size, shifts closed and the number of open alerts. It never shows their stock, sales or cash.
+- **Mark paid:** for EFT invoices, after you see the reference on your bank statement.
+- **Change plan by hand:** extend trials or give free months.
 
-**Deliberately not in v1:** replacing the POS, taking payments, payroll, customer marketing, loyalty, delivery, automatic "theft" findings, billing collection. The `subscriptions` and `report_purchases` tables are ready for billing once the workflow is proven.
+**Plans** (prices are set in `lib/plans.ts` and in `private.plan_price` in the database; change both together)
 
-### Design decisions worth knowing
+| Plan | Price | Includes |
+| --- | --- | --- |
+| Free | R0 | 1 shop, 15 products, alerts in the app, 7 days of history |
+| Starter | R299 | Unlimited products, email alerts, specials, 90 days of history |
+| Business | R699 | Monthly report, comparison with a usual day, full history |
+| Multi-site | R1,499 | More than one shop |
 
-- **Counts are blind.** Staff never see the expected figure while counting. Showing it invites people to type the number that makes the variance disappear. Differences appear only after submission.
-- **Separation of duties.** Whoever opened or closed a shift can't approve it, even if they're a manager (owners can switch this off per business with `allow_self_approval`).
-- **Nothing is silently edited.** Counts, movements, cash events, POS lines, settlements, approvals and the audit log are append-only at database level. A recount is version 2 with a reason. A shift or exception can only change state through the workflow functions.
-- **Differences, not accusations.** Labels say "variance — review", "awaiting settlement", "missing evidence". A settlement that hasn't arrived is *pending*, never a loss.
-- **Customer refunds come through the POS** as negative lines, so there is no separate "customer return" movement (it would double-count).
+These limits are enforced in the database, not only hidden in the app.
 
----
+## Go live: step by step
 
-## The formulas
+### 1. Supabase (database and logins)
+1. Create a project at supabase.com, in the region closest to South Africa.
+2. In **SQL Editor**, run each file in `supabase/migrations/` **in filename order**, one at a time. Alternatively, use the CLI: `npx supabase link` then `npx supabase db push`.
+3. **Authentication → Sign In / Providers → Email:** keep "Confirm email" **on**. Admin access depends on a confirmed email.
+4. **Authentication → URL Configuration:** set Site URL to your domain, and add `https://<domain>/auth/confirm` and `https://<domain>/auth/reset` to the redirect URLs.
+5. **Authentication → Email templates:**
+   - Confirm signup: link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`
+   - Reset password: link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`
+6. Copy the Project URL, the publishable key and the **secret** key from Project Settings → API Keys.
+7. Move to the Pro plan before real customers arrive. You need backups, and the free tier pauses when it's idle.
 
-All maths is exact decimal (Postgres `numeric`, `decimal.js` in TypeScript). The database function `public.shift_reconciliation()` is the source of truth. `lib/calculations` mirrors it, and a test proves both agree to the cent and gram.
-
-**Stock, per product**
-
-```
-expected closing = opening + deliveries + transfers in ± adjustments
-                 − POS net sold − transfers out − wastage − damage − internal use
-variance         = counted closing − expected closing
-```
-Flagged when |variance| > expected × stock tolerance %.
-
-**Cash in the till**
-
-```
-expected = opening float + cash sales (after discounts) − cash refunds
-         + paid in − paid out − removed to safe − banked
-variance = counted − expected
-```
-Flagged when |variance| > cash tolerance (R).
-
-**Card / EFT settlement, per method**
-
-```
-expected net = POS net for that method − processor fees + adjustments
-variance     = settled net − expected net
-```
-No statement yet → *awaiting settlement*.
-
-**Sales cross-check**
-
-```
-price difference = Σ(quantity × list price at time of sale) − POS gross for the same lines
-```
-Catches wrong price mappings or items rung up below list without a discount. Unmapped POS codes are flagged as missing evidence.
-
-### Worked example (used in the tests and the sample CSV)
-
-Opening 100 water, 50 granola bars, 2,500 g tea, 1,000 g nuts. Float R500. Delivery of 20 water. Staff record 2 water as wastage. POS export (`public/sample-pos-export.csv`) has 35 water sold (R360 cash, R270 card), 250 g tea (R112.50 less R2.50 discount, cash), one granola bar refunded in cash (R25), one voided line (ignored), and one unknown code. R300 banked. Closing count 79 water, 51 bars, 2,240 g tea, 1,000 g nuts. Cash counted R650.
-
-| | Expected | Counted | Difference |
-| --- | --- | --- | --- |
-| Water | 100 + 20 − 35 − 2 = **83** | 79 | **−4** |
-| Granola bar | 50 + 1 refunded = **51** | 51 | 0 |
-| Tea | 2,500 − 250 = **2,250 g** | 2,240 g | **−10 g** |
-| Cash | 500 + 480 − 25 − 300 = **R655** | R650 | **−R5** |
-| Card | R270 − R6.75 fees = **R263.25** | R263.25 | matched |
-
----
-
-## Permissions
-
-Enforced in Postgres with Row Level Security and security-definer functions. The browser only holds the publishable key, so changing a request in the browser can't get around the rules.
-
-| Action | Staff | Manager | Owner |
-| --- | --- | --- | --- |
-| Open shift, count stock, submit close | ✓ | ✓ | ✓ |
-| Record deliveries and transfers in | ✓ | ✓ | ✓ |
-| Record wastage, damage, internal use, transfers out, adjustments | needs approval | ✓ | ✓ |
-| Import POS data, record cash drops and settlements | | ✓ | ✓ |
-| See cash, sales and settlement figures | own shifts only | ✓ | ✓ |
-| Approve or return a shift | | ✓ (not own shift) | ✓ (not own shift) |
-| Explain an exception | ✓ | ✓ | ✓ |
-| Resolve an exception | | ✓ | ✓ |
-| See the audit trail | | ✓ | ✓ |
-| Products, prices, team, tolerances, subscription | | | ✓ |
-
-Staff see only their own membership. Anonymous visitors see nothing. Businesses are fully isolated from each other.
-
----
-
-## Set it up
-
-You need: a GitHub account, a Vercel account, a Supabase account, and Node 20+ if you want to run it locally.
-
-### 1. GitHub
-
+### 2. GitHub
 ```bash
 cd onpoint
-git init && git add -A && git commit -m "OnPoint MVP"
-# create an empty PRIVATE repo called onpoint on github.com, then:
-git remote add origin https://github.com/<you>/onpoint.git
+git remote add origin https://github.com/<you>/onpoint.git   # create an empty PRIVATE repo first
 git push -u origin main
 ```
 
-### 2. Supabase
+### 3. Vercel (hosting)
+1. Import the GitHub repo.
+2. Add every variable from `.env.example`. The secret key, Paystack key and CRON_SECRET are server-only: never prefix them with `NEXT_PUBLIC_`.
+3. Deploy, then add your domain under Settings → Domains.
+4. The daily card-renewal job in `vercel.json` runs at 08:00 South African time.
 
-1. Create a project (region: closest to South Africa is fine, e.g. `eu-west` or `af-south` if offered).
-2. Run the migrations, either:
-   - **SQL Editor:** paste and run each file in `supabase/migrations/` in filename order, or
-   - **CLI:** `npx supabase link --project-ref <ref>` then `npx supabase db push`.
-3. **Authentication → URL configuration:** set Site URL to your Vercel URL and add `https://<your-app>.vercel.app/auth/confirm` to redirect URLs.
-4. **Authentication → Email templates → Confirm signup:** change the link to
-   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`
-5. **Project Settings → API:** copy the Project URL and the publishable (anon) key.
+### 4. Your admin login
+Sign up on the live site with **nyorovai@gmail.com**, confirm the email, then sign in. The **Admin** tab appears. Use a new password, not one that has been written down or shared, and turn on two-factor authentication for that account in Supabase when you can.
 
-### 3. Vercel
+### 5. Getting paid
+- **EFT (works from day one):** fill in the four `EFT_` variables with the Norovari (Pty) Ltd business account. Clubs get an invoice with a unique reference. When the money arrives, open Admin and tap **Mark paid**.
+- **Card (Paystack):** open a Paystack account for **Norovari (Pty) Ltd**, separate from Norovari Tours. Describe OnPoint honestly as stock-control software for retailers, with dispensaries as your first customers. Once approved:
+  - put the live secret key in `PAYSTACK_SECRET_KEY`
+  - set the webhook URL to `https://<domain>/api/paystack/webhook`
+  - the "Pay by card" buttons appear automatically
 
-1. *Add New → Project*, import the GitHub repo. Framework is detected as Next.js.
-2. Add environment variables (Production and Preview):
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-3. Deploy. Every push to `main` deploys production. Every other branch gets a preview URL.
+  Renewals charge the saved card token monthly. If a payment fails, the club gets 7 days' grace and then moves to Free.
 
-Use a separate Supabase project for previews/testing so test shifts never mix with a real shop's records.
+### 6. Email alerts
+Create a free Resend account and verify your domain. Then set `RESEND_API_KEY` and `ALERT_FROM_EMAIL`. Alerts never mention product names, only the business name, the number of problems and a link.
 
-### 4. First run
+### 7. Before you sign the first paying club
+- [ ] Have an attorney review `/terms` and take advice on supplying software to cannabis businesses.
+- [ ] Check that "OnPoint" is free to use: the domain, plus a CIPC trademark search in the software class.
+- [ ] Register a POPIA Information Officer for Norovari (Pty) Ltd.
 
-1. Open the site, create an account, set up your shop (tick "add sample products").
-2. Open a shift, count, then download `sample-pos-export.csv` from the import screen to try the POS import.
-3. To test the manager review properly you need a second account: the person who worked the shift can't approve it.
-
-### Run locally
-
-```bash
-npm install
-cp .env.example .env.local   # fill in your Supabase URL and key
-npm run dev                  # http://localhost:3000
+## Till files
+CSV, one row per sale line:
 ```
+transaction_id,line_no,timestamp,pos_code,quantity,gross_amount,discount_amount,tax_amount,payment_method,line_type[,special_code,deal_ref]
+```
+- `special_code` matches the till code set on the special.
+- `deal_ref` groups the lines of one deal, so specials are counted automatically.
 
----
+Without a till file, managers can type in the till report instead, and staff can record specials by hand.
 
 ## Tests
-
-```bash
-npm test
-```
-
-50 tests run the real migrations inside an in-process Postgres (PGlite), with no cloud project needed:
-
-- **Tenant isolation:** another business sees zero rows in every table and can't call any workflow function on your data. Anonymous users see nothing.
-- **Least privilege:** staff money visibility, membership visibility, product/price/subscription protection, deactivated leavers.
-- **Full workflow:** open → count → activate → movements → POS import (bad totals rejected, re-import never double-counts) → cash → settlement → close → return → recount v2 → resubmit (old exceptions superseded) → approval blocked until wastage approved → separation of duties → approve → next shift catches the float and stock differences.
-- **Append-only evidence and audit trail.**
-- **Formulas:** blueprint examples, weight precision, tolerances, refunds, voids, discounts, pending settlements.
-- **SQL ↔ TypeScript parity**, including a mid-shift price change.
-- **POS CSV validation** with row-numbered errors.
-
----
-
-## POS import format
-
-One row per sale line:
-
-```
-transaction_id,line_no,timestamp,pos_code,quantity,gross_amount,discount_amount,tax_amount,payment_method,line_type
-```
-
-- `quantity` in the product's base unit (units, or grams for weighed items)
-- `gross_amount` tax-inclusive, before discount
-- `payment_method`: `cash` | `card` | `eft` | `other`
-- `line_type`: `sale` | `refund` | `void`. Refunds have negative quantity and amount.
-
-**Next step once the pilot store's POS is known:** write a small adapter in `lib/pos/` that converts that POS's export into this format. Nothing else changes.
-
----
-
-## Before using real shop data
-
-- [ ] Confirm the pilot business's activity and products with a South African lawyer before configuring OnPoint for any regulated sector. The product is deliberately generic.
-- [ ] POPIA: agree in writing who is responsible for the personal information (staff names and emails, shift records), how long it's kept, and who can access it.
-- [ ] Tell staff in writing what OnPoint records and how differences are reviewed. Take employment advice before using records in any disciplinary process.
-- [ ] Move to Supabase Pro (backups; the free tier pauses after a week of inactivity) and test a restore.
-- [ ] Turn on leaked-password protection and consider MFA for owners and managers in Supabase Auth.
-- [ ] Set the business time zone if not South Africa (`lib/labels.ts` formats in Africa/Johannesburg).
-- [ ] Have someone independent review the RLS policies before go-live.
+`npm test` runs 61 tests against the real migrations in an in-process Postgres. They cover:
+- tenant isolation
+- the admin gate, including a look-alike unconfirmed email
+- billing: the 24-hour discount over 3 months, duplicate callbacks, wrong amounts, EFT, failed renewals and grace
+- plan limits
+- the specials tally, minus and low-stock alerts, till and card-machine totals
+- the full shift workflow
+- SQL vs TypeScript sums
 
 ## Project layout
-
 ```
-app/                    pages and server actions
-  actions.ts            every write the app makes (runs as the signed-in user)
-  shifts/[id]/          the shift screen: opening, during, closing, review
-  reports/[id]/         printable report + CSV
-components/             UI pieces (ReconView shows the working for every figure)
-lib/calculations/       formulas (mirror of the database engine)
-lib/pos/csv.ts          POS export parser and validator
-lib/supabase/           server/browser clients
-proxy.ts                session refresh + sign-in redirect
-supabase/migrations/    schema, security, workflow, onboarding
-tests/                  database and formula tests
+app/                 pages and server actions (app/actions.ts)
+  page.tsx           front page        demo/        open demo
+  today/ shifts/ exceptions/ settings/ billing/ reports/ admin/
+  api/paystack/webhook   api/cron/billing
+components/          OwnerShiftView (the six owner screens), forms
+lib/                 plans.ts, paystack.ts, notify.ts, calculations, supabase clients
+supabase/migrations/ schema, security, workflow, billing, specials
+tests/               database and formula tests
 ```

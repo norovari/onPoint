@@ -10,7 +10,7 @@ export default async function Onboarding() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
   const { data: m } = await supabase.from("memberships").select("business_id").eq("user_id", data.user.id).eq("active", true).limit(1);
-  if (m?.length) redirect("/");
+  if (m?.length) redirect("/today");
 
   return (
     <main className="wrap" style={{ maxWidth: 520, paddingTop: 32 }}>
@@ -21,16 +21,16 @@ export default async function Onboarding() {
       </p>
       <ActionForm action={createBusiness} className="sheet">
         <label htmlFor="full_name">Your name</label>
-        <input id="full_name" name="full_name" autoComplete="name" />
+        <input id="full_name" name="full_name" autoComplete="name" defaultValue={String(data.user.user_metadata?.full_name ?? "")} />
         <label htmlFor="name">Business name</label>
-        <input id="name" name="name" required />
-        <label htmlFor="location">Shop location <span className="hint">e.g. Main store</span></label>
-        <input id="location" name="location" required />
+        <input id="name" name="name" required defaultValue={String(data.user.user_metadata?.business_name ?? "")} />
+        <label htmlFor="location">Shop name or area <span className="hint">e.g. Main store</span></label>
+        <input id="location" name="location" required defaultValue="Main store" />
         <label htmlFor="float">Standard till float (R)</label>
         <input id="float" name="float" type="number" inputMode="decimal" step="0.01" min="0" defaultValue="500" />
         <label style={{ display: "flex", gap: 10, alignItems: "center", fontWeight: 400 }}>
           <input type="checkbox" name="demo" defaultChecked style={{ width: "auto" }} />
-          Add four sample products so I can try a shift first
+          Add four sample products so I can try a shift first (you can remove them later)
         </label>
         <div style={{ marginTop: 16 }}>
           <Submit>Create my shop</Submit>
