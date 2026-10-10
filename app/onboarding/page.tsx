@@ -30,7 +30,7 @@ export default async function Onboarding() {
         <input id="float" name="float" type="number" inputMode="decimal" step="0.01" min="0" defaultValue="500" />
         <label style={{ display: "flex", gap: 10, alignItems: "center", fontWeight: 400 }}>
           <input type="checkbox" name="demo" defaultChecked style={{ width: "auto" }} />
-          Add four sample products so I can try a shift first (you can remove them later)
+          Add a sample dispensary menu (flower, pre-rolls, edibles, vapes and two pre-roll specials) so I can try a shift first. You can edit or remove them later.
         </label>
         <div style={{ marginTop: 16 }}>
           <Submit>Create my shop</Submit>

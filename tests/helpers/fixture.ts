@@ -21,6 +21,23 @@ export interface World {
 const one = async <T = Record<string, unknown>>(q: PGlite, sql: string, params: unknown[] = []) =>
   (await q.query<T>(sql, params)).rows[0];
 
+// A small fixed catalogue for the workflow tests (independent of the sample
+// catalogue new shops get, which can change).
+async function loadTestCatalogue(q: PGlite, biz: string) {
+  const rows: [string, string, string, string, string, string, number][] = [
+    ["DEMO-001", "Sparkling water 500ml", "unit", "unit", "unit", "P001", 18.0],
+    ["DEMO-002", "Granola bar", "unit", "unit", "unit", "P002", 25.0],
+    ["DEMO-003", "Loose tea (by weight)", "weight", "g", "kg", "P003", 0.45],
+    ["DEMO-004", "Mixed nuts (by weight)", "weight", "g", "kg", "P004", 0.32],
+  ];
+  for (const [sku, name, mode, base, display, code, price] of rows) {
+    const { id } = await one<{ id: string }>(q,
+      `insert into products (business_id, sku, name, tracking_mode, base_unit, display_unit, pos_code) values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+      [biz, sku, name, mode, base, display, code]);
+    await q.query(`insert into product_prices (product_id, unit_price, valid_from, created_by) values ($1, $2, now() - interval '1 day', auth.uid())`, [id, price]);
+  }
+}
+
 export async function buildWorld(): Promise<World> {
   const db = await createDb();
   for (const [k, id] of Object.entries(U)) {
@@ -30,7 +47,7 @@ export async function buildWorld(): Promise<World> {
 
   const bizA = await db.as(U.ownerA, async (q) => {
     const { create_business } = await one<{ create_business: string }>(q, `select public.create_business('Demo Store A', 'Main', 500)`);
-    await q.query(`select public.load_demo_catalogue($1)`, [create_business]);
+    await loadTestCatalogue(q, create_business);
     await q.query(`select public.add_member($1, 'managerA@example.test', 'manager')`, [create_business]);
     await q.query(`select public.add_member($1, 'staffA@example.test', 'staff')`, [create_business]);
     await q.query(`select public.add_member($1, 'staffA2@example.test', 'staff')`, [create_business]);
@@ -38,7 +55,7 @@ export async function buildWorld(): Promise<World> {
   });
   const bizB = await db.as(U.ownerB, async (q) => {
     const r = await one<{ create_business: string }>(q, `select public.create_business('Other Store B', 'Branch', 300)`);
-    await q.query(`select public.load_demo_catalogue($1)`, [r.create_business]);
+    await loadTestCatalogue(q, r.create_business);
     return r.create_business;
   });
 
