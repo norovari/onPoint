@@ -2,8 +2,15 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "OnPoint", template: "%s · OnPoint" },
-  description: "Shift stock, cash and settlement reconciliation for small retailers.",
+  title: { default: "OnPoint – Dispensary Tracker", template: "%s · OnPoint" },
+  description: "Know exactly what happened to your stock and cash every shift.",
+  applicationName: "OnPoint – Dispensary Tracker",
+  openGraph: {
+    title: "OnPoint – Dispensary Tracker",
+    description: "Know exactly what happened to your stock and cash every shift.",
+    siteName: "OnPoint – Dispensary Tracker",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

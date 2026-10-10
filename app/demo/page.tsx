@@ -10,12 +10,12 @@ function businessName(b?: string) {
 // The link preview (WhatsApp, SMS, email) shows the shop's own name.
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const name = businessName((await searchParams).b);
-  const title = name ? `${name}: your OnPoint demo` : "OnPoint demo";
-  const description = "See your stock at the start and end of each shift, what each product made, and alerts when stock or cash don't tally.";
+  const title = name ? `${name}: your OnPoint demo` : "OnPoint – Dispensary Tracker demo";
+  const description = "OnPoint – Dispensary Tracker. See your stock at the start and end of each shift, what each product made, and alerts when stock or cash don't tally.";
   return {
     title: { absolute: title },
     description,
-    openGraph: { title, description, siteName: "OnPoint", type: "website" },
+    openGraph: { title, description, siteName: "OnPoint – Dispensary Tracker", type: "website" },
     twitter: { card: "summary", title, description },
   };
 }
