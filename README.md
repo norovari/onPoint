@@ -46,7 +46,7 @@ These limits are enforced in the database, not only hidden in the app.
 
 ### 1. Supabase (database and logins)
 1. Create a project at supabase.com, in the region closest to South Africa.
-2. In **SQL Editor**, run each file in `supabase/migrations/` **in filename order**, one at a time. Alternatively, use the CLI: `npx supabase link` then `npx supabase db push`.
+2. In **SQL Editor**, paste and run `supabase/setup/1-run-first.sql`, then in a new query `supabase/setup/2-run-second.sql`. These two files are the migrations combined. Alternatively, use the CLI: `npx supabase link` then `npx supabase db push`.
 3. **Authentication → Sign In / Providers → Email:** keep "Confirm email" **on**. Admin access depends on a confirmed email.
 4. **Authentication → URL Configuration:** set Site URL to your domain, and add `https://<domain>/auth/confirm` and `https://<domain>/auth/reset` to the redirect URLs.
 5. **Authentication → Email templates:**
