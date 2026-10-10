@@ -1,10 +1,10 @@
 -- Every subscription gets a permanent customer reference: NY0R0 + a number
--- (NY0R00001, NY0R00002, ...). Each card payment uses that reference plus a
--- payment number (NY0R00001-01, -02, ...) so Paystack sees a unique reference
+-- (NY0R02192, NY0R02193, ...). Each card payment uses that reference plus a
+-- payment number (NY0R02192-01, -02, ...) so Paystack sees a unique reference
 -- per payment and every payment traces back to one customer.
 -- Checkout is by card only (Paystack); there are no EFT invoices.
 
-create sequence subscription_ref_seq start 1;
+create sequence subscription_ref_seq start 2192;
 
 create or replace function private.next_subscription_ref()
 returns text language sql volatile security definer set search_path = ''

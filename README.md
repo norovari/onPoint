@@ -23,7 +23,7 @@ Run by **Norovari (Pty) Ltd t/a OnPoint**.
   - Stock for next shift
 - **Alerts:** stock and money don't tally (valued at selling price), cash short, card machine doesn't match, a special gives away extra items, a product went into minus, running low. They show in the app on every plan, and are emailed on paid plans once email is set up.
 - **Monthly report (Business plan and up):** what goes missing most, and on whose shifts.
-- **Plan page:** pay by card through Paystack; renews monthly. Each account has a reference (NY0R00001, NY0R00002, …) and each payment is numbered under it (NY0R00001-01, -02, …).
+- **Plan page:** pay by card through Paystack; renews monthly. Each account has a reference (NY0R02192, NY0R02193, …) and each payment is numbered under it (NY0R02192-01, -02, …).
 
 **For you (`/admin`)**
 - Only a confirmed sign-in as **nyorovai@gmail.com** opens it. Everyone else gets "not found". This is checked in the database, not just the page.
