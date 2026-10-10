@@ -23,12 +23,12 @@ Run by **Norovari (Pty) Ltd t/a OnPoint**.
   - Stock for next shift
 - **Alerts:** stock and money don't tally (valued at selling price), cash short, card machine doesn't match, a special gives away extra items, a product went into minus, running low. They show in the app on every plan, and are emailed on paid plans once email is set up.
 - **Monthly report (Business plan and up):** what goes missing most, and on whose shifts.
-- **Plan page:** pay by card (Paystack, renews monthly) or EFT invoice.
+- **Plan page:** pay by card through Paystack; renews monthly. Each account has a reference (NY0R00001, NY0R00002, …) and each payment is numbered under it (NY0R00001-01, -02, …).
 
 **For you (`/admin`)**
 - Only a confirmed sign-in as **nyorovai@gmail.com** opens it. Everyone else gets "not found". This is checked in the database, not just the page.
 - Shows every dispensary, its plan, trial end, payments, team size, shifts closed and the number of open alerts. It never shows their stock, sales or cash.
-- **Mark paid:** for EFT invoices, after you see the reference on your bank statement.
+- **Payments:** every payment with its customer reference and status. Search by NY0R0 reference, business or email.
 - **Change plan by hand:** extend trials or give free months.
 
 **Plans** (prices are set in `lib/plans.ts` and in `private.plan_price` in the database; change both together)
@@ -72,7 +72,6 @@ git push -u origin main
 Sign up on the live site with **nyorovai@gmail.com**, confirm the email, then sign in. The **Admin** tab appears. Use a new password, not one that has been written down or shared, and turn on two-factor authentication for that account in Supabase when you can.
 
 ### 5. Getting paid
-- **EFT (works from day one):** fill in the four `EFT_` variables with the Norovari (Pty) Ltd business account. Clubs get an invoice with a unique reference. When the money arrives, open Admin and tap **Mark paid**.
 - **Card (Paystack):** open a Paystack account for **Norovari (Pty) Ltd**, separate from Norovari Tours. Describe OnPoint honestly as stock-control software for retailers, with dispensaries as your first customers. Once approved:
   - put the live secret key in `PAYSTACK_SECRET_KEY`
   - set the webhook URL to `https://<domain>/api/paystack/webhook`
@@ -102,7 +101,7 @@ Without a till file, managers can type in the till report instead, and staff can
 `npm test` runs 61 tests against the real migrations in an in-process Postgres. They cover:
 - tenant isolation
 - the admin gate, including a look-alike unconfirmed email
-- billing: the 24-hour discount over 3 months, duplicate callbacks, wrong amounts, EFT, failed renewals and grace
+- billing: the 24-hour discount over 3 months, duplicate callbacks, wrong amounts, references, failed renewals and grace
 - plan limits
 - the specials tally, minus and low-stock alerts, till and card-machine totals
 - the full shift workflow

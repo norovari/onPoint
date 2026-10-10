@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
-import { adminMarkPaid, adminSetPlan } from "@/app/actions";
+import { adminSetPlan } from "@/app/actions";
 import { planName } from "@/lib/plans";
 import { formatZar } from "@/lib/calculations";
 import { when } from "@/lib/labels";
@@ -13,12 +13,13 @@ interface Account {
   id: string; name: string; created_at: string; owner_email: string | null; plan: string; status: string;
   current_period_end: string | null; payment_method: string | null; discount_cycles_remaining: number; effective_plan: string;
   list_price: number; team: number; locations: number; products: number; shifts_30d: number; last_shift_at: string | null;
-  open_alerts: number; pending_invoices: number; total_paid: number;
+  open_alerts: number; total_paid: number; reference: string; last_paid_at: string | null;
 }
-interface Inv { id: string; number: number; business: string; plan: string; method: string; reference: string; amount: number; discount_pct: number; status: string; created_at: string }
+interface Pay { id: string; subscription_ref: string; business: string; plan: string; reference: string; amount: number; discount_pct: number; status: string; created_at: string; paid_at: string | null }
 
 // Only the confirmed nyorovai@gmail.com sign-in passes this check (enforced in the database too).
-export default async function Admin() {
+export default async function Admin({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const search = ((await searchParams).q ?? "").trim().toLowerCase();
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/login");
@@ -27,14 +28,17 @@ export default async function Admin() {
 
   const [{ data: overview }, { data: pending }] = await Promise.all([
     supabase.rpc("admin_overview"),
-    supabase.rpc("admin_invoices", { p_status: "pending" }),
+    supabase.rpc("admin_invoices", { p_status: "all" }),
   ]);
-  const accounts = (overview ?? []) as Account[];
-  const invoices = (pending ?? []) as Inv[];
-  const paying = accounts.filter((a) => a.status === "active" && a.effective_plan !== "free");
+  const allAccounts = (overview ?? []) as Account[];
+  const allPayments = (pending ?? []) as Pay[];
+  const match = (...v: (string | null)[]) => !search || v.some((x) => (x ?? "").toLowerCase().includes(search));
+  const accounts = allAccounts.filter((a) => match(a.reference, a.name, a.owner_email));
+  const payments = allPayments.filter((p) => match(p.subscription_ref, p.reference, p.business)).slice(0, 50);
+  const paying = allAccounts.filter((a) => a.status === "active" && a.effective_plan !== "free");
   const monthly = paying.reduce((sum, a) => sum + Number(a.list_price) * (a.discount_cycles_remaining > 0 ? 0.8 : 1), 0);
-  const trials = accounts.filter((a) => a.status === "trialing" && a.effective_plan !== "free");
-  const totalPaid = accounts.reduce((s, a) => s + Number(a.total_paid), 0);
+  const trials = allAccounts.filter((a) => a.status === "trialing" && a.effective_plan !== "free");
+  const totalPaid = allAccounts.reduce((s, a) => s + Number(a.total_paid), 0);
 
   return (
     <Shell>
@@ -42,26 +46,40 @@ export default async function Admin() {
       <p className="lede">Your dispensaries, their plans and how actively they use OnPoint. Their stock, sales and cash are never shown here.</p>
 
       <div className="figures">
-        <div className="figure"><div className="value">{accounts.length}</div><div className="label">Signed up</div></div>
+        <div className="figure"><div className="value">{allAccounts.length}</div><div className="label">Signed up</div></div>
         <div className="figure"><div className="value">{paying.length}</div><div className="label">Paying</div></div>
         <div className="figure"><div className="value">{trials.length}</div><div className="label">On free trial</div></div>
         <div className="figure"><div className="value">{formatZar(monthly)}</div><div className="label">Monthly income now</div></div>
       </div>
       <p className="muted small">Collected so far: {formatZar(totalPaid)}.</p>
 
-      <h2>EFT payments to check</h2>
-      {invoices.length === 0 ? <p className="muted">No invoices waiting.</p> : (
-        <ul className="lines">
-          {invoices.map((i) => (
-            <li key={i.id} className="line" data-status="pending">
-              <span className="name">{i.business}: {formatZar(i.amount)}</span>
-              {i.method === "eft" ? (
-                <ActionForm action={adminMarkPaid} hidden={{ invoice_id: i.id }}><Submit className="quiet">Mark paid</Submit></ActionForm>
-              ) : <span className="small muted">Card, not completed</span>}
-              <span className="meta">Invoice {i.number}, reference <strong>{i.reference}</strong>, {planName(i.plan)}{i.discount_pct ? `, ${i.discount_pct}% launch discount` : ""}, {when(i.created_at)}. Check your bank statement for this reference before marking it paid.</span>
-            </li>
-          ))}
-        </ul>
+      <form method="get" className="row" style={{ margin: "16px 0", flexWrap: "wrap" }}>
+        <label htmlFor="q" className="sr-only">Search</label>
+        <input id="q" name="q" defaultValue={search} placeholder="Search by reference (NY0R0…), business or email" style={{ flex: "1 1 260px" }} />
+        <button type="submit" className="quiet">Search</button>
+        {search && <a href="/admin" className="small">Clear</a>}
+      </form>
+
+      <h2>Payments</h2>
+      {payments.length === 0 ? <p className="muted">{search ? "No payments match." : "No payments yet."}</p> : (
+        <div className="scroll">
+          <table className="data">
+            <thead><tr><th>Customer ref</th><th>Payment ref</th><th>Business</th><th>Plan</th><th>Date</th><th className="num">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              {payments.map((p) => (
+                <tr key={p.id}>
+                  <td className="mono"><a href={`/admin?q=${p.subscription_ref}`}>{p.subscription_ref}</a></td>
+                  <td className="mono">{p.reference}</td>
+                  <td>{p.business}</td>
+                  <td>{planName(p.plan)}{p.discount_pct ? ` (${p.discount_pct}% off)` : ""}</td>
+                  <td>{when(p.paid_at ?? p.created_at)}</td>
+                  <td className="num">{formatZar(p.amount)}</td>
+                  <td><span className="status" data-status={p.status === "paid" ? "matched" : p.status === "failed" ? "variance" : "pending"}>{p.status === "paid" ? "Paid" : p.status === "failed" ? "Failed" : "Not completed"}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <h2>Accounts</h2>
@@ -69,14 +87,15 @@ export default async function Admin() {
       {accounts.map((a) => (
         <div key={a.id} className="sheet">
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
-            <h3 style={{ fontSize: 19 }}>{a.name}</h3>
+            <h3 style={{ fontSize: 19 }}><span className="mono">{a.reference}</span> · {a.name}</h3>
             <span className="status" data-status={a.effective_plan === "free" ? "neutral" : a.status === "active" ? "matched" : a.status === "past_due" ? "variance" : "pending"}>
               {a.status === "trialing" && a.effective_plan !== "free" ? `Trial until ${when(a.current_period_end)}` : `${planName(a.effective_plan)}${a.status === "past_due" ? ", payment failed" : ""}`}
             </span>
           </div>
           <p className="muted small" style={{ margin: "4px 0 8px" }}>
             {a.owner_email ?? "No owner email"}. Joined {when(a.created_at)}.
-            {a.status === "active" && a.current_period_end ? ` Paid until ${when(a.current_period_end)} by ${a.payment_method === "card" ? "card" : "EFT"}.` : ""}
+            {a.status === "active" && a.current_period_end ? ` Paid until ${when(a.current_period_end)}.` : ""}
+            {a.last_paid_at ? ` Last payment ${when(a.last_paid_at)}.` : " No payments yet."}
           </p>
           <table className="working"><tbody>
             <tr><td>Team members</td><td>{a.team}</td></tr>
@@ -88,7 +107,7 @@ export default async function Admin() {
           </tbody></table>
           <details style={{ marginTop: 8 }}>
             <summary>Change plan by hand</summary>
-            <p className="muted small">For extending a trial, a free month, or fixing an EFT payment made without the reference.</p>
+            <p className="muted small">For extending a trial or giving a free month.</p>
             <ActionForm action={adminSetPlan} hidden={{ business_id: a.id }}>
               <div className="row" style={{ flexWrap: "wrap" }}>
                 <div>

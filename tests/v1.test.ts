@@ -93,13 +93,29 @@ describe("plans and billing", () => {
     expect(q1).toMatchObject({ list_amount: 699, discount_pct: 0, amount: 699 });
   });
 
-  test("EFT: owner gets an invoice; only the admin can mark it paid", async () => {
-    const inv = await w.db.as(U.ownerB, (q) => val(q, `select public.billing_create_invoice($1, 'business', 'eft')`, [w.bizB]));
-    expect(inv.reference).toMatch(/^OP[0-9A-F]{10}$/);
-    await expect(w.db.as(U.ownerB, (q) => q.query(`select public.admin_mark_invoice_paid($1)`, [inv.id]))).rejects.toThrow(/Not found/);
-    await w.db.as(ADMIN, (q) => q.query(`select public.admin_mark_invoice_paid($1)`, [inv.id]));
-    const p = await w.db.as(U.ownerB, (q) => val(q, `select public.business_plan($1)`, [w.bizB]));
-    expect(p).toMatchObject({ plan: "business", status: "active", payment_method: "eft" });
+  test("references: NY0R0 per customer, numbered per payment, never changed", async () => {
+    const refA = (await w.db.query<any>(`select reference from subscriptions where business_id = $1`, [w.bizA])).rows[0].reference;
+    const refB = (await w.db.query<any>(`select reference from subscriptions where business_id = $1`, [w.bizB])).rows[0].reference;
+    expect(refA).toMatch(/^NY0R0\d{4}$/);
+    expect(refB).toMatch(/^NY0R0\d{4}$/);
+    expect(refA).not.toBe(refB);
+    // Owners see their own reference
+    expect(await w.db.as(U.ownerB, (q) => val(q, `select public.business_plan($1)->>'reference'`, [w.bizB]))).toBe(refB);
+    // Business A's payments so far: first checkout then 3 renewals
+    const pays = (await w.db.query<any>(`select reference, subscription_ref, status from invoices where business_id = $1 order by seq`, [w.bizA])).rows;
+    expect(pays.map((p) => p.reference)).toEqual([`${refA}-01`, `${refA}-02`, `${refA}-03`, `${refA}-04`]);
+    expect(pays.every((p) => p.subscription_ref === refA && p.status === "paid")).toBe(true);
+    // A new checkout gets the next number
+    const inv = await w.db.as(U.ownerB, (q) => val(q, `select public.billing_create_invoice($1, 'business', 'card')`, [w.bizB]));
+    expect(inv.reference).toBe(`${refB}-01`);
+    // Card only
+    await expect(w.db.as(U.ownerB, (q) => q.query(`select public.billing_create_invoice($1, 'business', 'eft')`, [w.bizB]))).rejects.toThrow(/Pay by card/);
+    // Nobody can change a reference
+    await expect(w.db.query(`update subscriptions set reference = 'NY0R09999' where business_id = $1`, [w.bizB])).rejects.toThrow(/never changes/);
+    // Admin sees references; owners can't use admin functions
+    const all = await w.db.as(ADMIN, (q) => val(q, `select public.admin_overview()`));
+    expect(all.map((a: any) => a.reference)).toEqual(expect.arrayContaining([refA, refB]));
+    await expect(w.db.as(U.ownerB, (q) => q.query(`select public.admin_invoices('all')`))).rejects.toThrow(/Not found/);
   });
 
   test("failed card renewal: 7 days' grace, then the Free plan", async () => {

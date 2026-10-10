@@ -487,18 +487,15 @@ async function siteUrl() {
 }
 
 export async function startCheckout(_: ActionState, f: FormData): Promise<ActionState> {
-  const { supabase, businessId, role } = await requireSession();
+  const { supabase, businessId, role, businessName } = await requireSession();
   if (role !== "owner") return { error: "Only the owner can manage the plan." };
   const plan = str(f, "plan");
-  const method = str(f, "method");
   if (!["starter", "business", "multi_site"].includes(plan)) return { error: "Choose a plan." };
-  if (method === "card" && !process.env.PAYSTACK_SECRET_KEY) return { error: "Card payments aren’t switched on yet. Choose EFT." };
+  if (!process.env.PAYSTACK_SECRET_KEY) return { error: "Online payment isn’t switched on yet. Please contact OnPoint." };
 
-  const { data: inv, error } = await supabase.rpc("billing_create_invoice", { p_business: businessId, p_plan: plan, p_method: method });
+  const { data: inv, error } = await supabase.rpc("billing_create_invoice", { p_business: businessId, p_plan: plan, p_method: "card" });
   if (error) return { error: friendly(error) };
-  const invoice = inv as { id: string; reference: string; amount: number };
-
-  if (method === "eft") redirect(`/billing/invoice/${invoice.id}`);
+  const payment = inv as { id: string; reference: string; subscription_ref: string; amount: number };
 
   const { data: user } = await supabase.auth.getUser();
   const { initializeTransaction } = await import("@/lib/paystack");
@@ -506,25 +503,23 @@ export async function startCheckout(_: ActionState, f: FormData): Promise<Action
   try {
     const tx = await initializeTransaction({
       email: user.user?.email ?? "",
-      amountCents: Math.round(Number(invoice.amount) * 100),
-      reference: invoice.reference,
+      amountCents: Math.round(Number(payment.amount) * 100),
+      reference: payment.reference,
       callbackUrl: `${await siteUrl()}/billing/callback`,
-      metadata: { business_id: businessId, plan, invoice_id: invoice.id },
+      metadata: {
+        business_id: businessId, plan, payment_id: payment.id, subscription_reference: payment.subscription_ref,
+        custom_fields: [
+          { display_name: "OnPoint reference", variable_name: "subscription_reference", value: payment.subscription_ref },
+          { display_name: "Business", variable_name: "business", value: businessName },
+          { display_name: "Plan", variable_name: "plan", value: plan },
+        ],
+      },
     });
     url = tx.authorization_url;
   } catch (e) {
     return { error: `Couldn’t start the card payment: ${(e as Error).message}` };
   }
   redirect(url);
-}
-
-export async function adminMarkPaid(_: ActionState, f: FormData): Promise<ActionState> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("admin_mark_invoice_paid", { p_invoice: str(f, "invoice_id") });
-  if (error) return { error: friendly(error) };
-  revalidatePath("/admin");
-  const r = data as { invoice: number; already_paid: boolean };
-  return { ok: r.already_paid ? `Invoice ${r.invoice} was already paid.` : `Invoice ${r.invoice} marked paid. Their plan is active for a month.` };
 }
 
 export async function adminSetPlan(_: ActionState, f: FormData): Promise<ActionState> {

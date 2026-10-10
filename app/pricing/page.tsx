@@ -30,7 +30,7 @@ export default function Pricing() {
             )}
           </div>
         ))}
-        <p className="muted small">Prices are in rand and include everything shown. Pay by card (billed monthly) or EFT. Cancel any time. Your plan runs to the end of the month you paid for.</p>
+        <p className="muted small">Prices are in rand and include everything shown. Pay online by card, billed monthly. Cancel any time. Your plan runs to the end of the month you paid for.</p>
         <Link href="/signup" className="button" style={{ width: "100%" }}>Start free</Link>
         <footer className="muted small" style={{ marginTop: 40, borderTop: "1px solid var(--rule)", paddingTop: 16 }}>
           {LEGAL_NAME}{CONTACT_EMAIL ? `. Questions: ${CONTACT_EMAIL}` : ""}. <Link href="/terms">Terms, privacy and refunds</Link>

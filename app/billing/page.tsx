@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { startCheckout } from "@/app/actions";
-import { cardConfigured, eftConfigured, LAUNCH_DISCOUNT, PLANS, planName } from "@/lib/plans";
+import { cardConfigured, CONTACT_EMAIL, LAUNCH_DISCOUNT, PLANS, planName } from "@/lib/plans";
 import { formatZar } from "@/lib/calculations";
 import { when } from "@/lib/labels";
 
@@ -15,30 +15,32 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
   const [{ data: plan }, { data: invoices }] = await Promise.all([
     supabase.rpc("business_plan", { p_business: businessId }),
     role === "owner"
-      ? supabase.from("invoices").select("id, number, plan, method, amount, discount_pct, status, created_at, paid_at").order("created_at", { ascending: false }).limit(12)
+      ? supabase.from("invoices").select("id, reference, plan, amount, discount_pct, status, created_at, paid_at").neq("status", "void").order("created_at", { ascending: false }).limit(12)
       : Promise.resolve({ data: [] as never[] }),
   ]);
   const p = plan as {
-    plan: string; subscribed_plan: string; status: string; current_period_end: string | null; payment_method: string | null;
+    reference: string; plan: string; subscribed_plan: string; status: string; current_period_end: string | null; payment_method: string | null;
     discount_cycles_remaining: number; launch_discount_open: boolean; launch_discount_until: string | null; history_days: number | null;
   };
   const owner = role === "owner";
   const card = cardConfigured();
-  const eft = eftConfigured();
   const hoursLeft = p.launch_discount_until ? Math.max(0, Math.floor((new Date(p.launch_discount_until).getTime() - Date.now()) / 3600_000)) : 0;
 
   return (
     <Shell businessName={s.businessName}>
       <h1>Your plan</h1>
       {q.paid && <p className="notice ok">Payment received. Thank you.</p>}
-      {q.failed && <p className="notice error">The card payment didn’t go through. Try again or choose EFT.</p>}
+      {q.failed && <p className="notice error">The card payment didn’t go through. Try again, or use a different card.</p>}
       {q.check && <p className="notice">We couldn’t confirm the payment yet. If money left your account, it will show here within a few minutes.</p>}
 
       <div className="sheet">
-        <p style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{planName(p.plan)}</p>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
+          <p style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{planName(p.plan)}</p>
+          <p className="small" style={{ margin: 0 }}>Your reference: <strong className="mono">{p.reference}</strong></p>
+        </div>
         <p className="muted" style={{ margin: "4px 0 0" }}>
           {p.status === "trialing" && `Free trial of ${planName(p.subscribed_plan)} until ${when(p.current_period_end)}. After that you move to Free unless you choose a plan.`}
-          {p.status === "active" && `Paid until ${when(p.current_period_end)}${p.payment_method === "card" ? ", renews automatically by card" : ", by EFT"}.`}
+          {p.status === "active" && `Paid until ${when(p.current_period_end)}${p.payment_method === "card" ? ", renews automatically by card" : ""}.`}
           {p.status === "past_due" && "Your last card payment failed. Update it within 7 days to keep your plan."}
           {p.status === "cancelled" && "Your plan has ended. You’re on Free."}
           {p.discount_cycles_remaining > 0 && ` Launch discount on your next ${p.discount_cycles_remaining} payment${p.discount_cycles_remaining === 1 ? "" : "s"}.`}
@@ -55,7 +57,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
       {owner && (
         <>
           <h2>Choose a plan</h2>
-          {!card && !eft && <p className="notice">Payments aren’t set up yet. Contact OnPoint to subscribe.</p>}
+          {!card && <p className="notice">Online payment isn’t switched on yet. {CONTACT_EMAIL ? <>Email {CONTACT_EMAIL}</> : "Contact OnPoint"} to subscribe and quote your reference, {p.reference}.</p>}
           {PLANS.filter((x) => x.price > 0).map((x) => {
             const price = p.launch_discount_open ? Math.round(x.price * (100 - LAUNCH_DISCOUNT.pct)) / 100 : x.price;
             const current = p.status === "active" && p.subscribed_plan === x.id;
@@ -70,8 +72,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
                 {p.launch_discount_open && <p className="small muted" style={{ margin: "2px 0 0" }}>Normally {formatZar(x.price)}. {LAUNCH_DISCOUNT.pct}% off for {LAUNCH_DISCOUNT.months} months.</p>}
                 <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{x.features.map((f) => <li key={f}>{f}</li>)}</ul>
                 <div className="row" style={{ marginTop: 12, flexWrap: "wrap" }}>
-                  {card && <Submit name="method" value="card">Pay by card</Submit>}
-                  {eft && <Submit className={card ? "quiet" : ""} name="method" value="eft">Pay by EFT</Submit>}
+                  {card && <Submit name="method" value="card">Subscribe and pay by card</Submit>}
                 </div>
               </ActionForm>
             );
@@ -79,18 +80,18 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
 
           {(invoices ?? []).length > 0 && (
             <>
-              <h2>Invoices</h2>
+              <h2>Payments</h2>
               <div className="scroll">
                 <table className="data">
-                  <thead><tr><th>No.</th><th>Plan</th><th>Date</th><th className="num">Amount</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Reference</th><th>Plan</th><th>Date</th><th className="num">Amount</th><th>Status</th></tr></thead>
                   <tbody>
                     {(invoices ?? []).map((i) => (
                       <tr key={i.id}>
-                        <td><a href={`/billing/invoice/${i.id}`}>{i.number}</a></td>
+                        <td className="mono">{i.reference}</td>
                         <td>{planName(i.plan)}</td>
-                        <td>{when(i.created_at)}</td>
+                        <td>{when(i.paid_at ?? i.created_at)}</td>
                         <td className="num">{formatZar(i.amount)}</td>
-                        <td>{i.status === "pending" ? (i.method === "eft" ? "Waiting for EFT" : "Not paid") : i.status === "paid" ? "Paid" : i.status === "void" ? "Cancelled" : "Failed"}</td>
+                        <td>{i.status === "pending" ? "Not completed" : i.status === "paid" ? "Paid" : "Failed"}</td>
                       </tr>
                     ))}
                   </tbody>
