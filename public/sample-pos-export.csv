@@ -1,0 +1,7 @@
+transaction_id,line_no,timestamp,pos_code,quantity,gross_amount,discount_amount,tax_amount,payment_method,line_type
+T1,1,2026-10-10T08:15:00+02:00,P001,20,360.00,0.00,46.96,cash,sale
+T2,1,2026-10-10T09:02:00+02:00,P001,15,270.00,0.00,35.22,card,sale
+T3,1,2026-10-10T09:40:00+02:00,P003,250,112.50,2.50,14.35,cash,sale
+T4,1,2026-10-10T10:05:00+02:00,P002,-1,-25.00,0.00,-3.26,cash,refund
+T5,1,2026-10-10T10:20:00+02:00,P002,2,50.00,0.00,6.52,cash,void
+T6,1,2026-10-10T11:00:00+02:00,X99,1,10.00,0.00,1.30,cash,sale
