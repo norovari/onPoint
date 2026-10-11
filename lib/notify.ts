@@ -96,3 +96,24 @@ export async function sendTrialEmail(t: TrialEmail) {
     return false;
   }
 }
+
+// Short notices to the OnPoint admin: new shops and payments.
+// ADMIN_NOTIFY_EMAIL can override where they go.
+export async function notifyAdmin(subject: string, lines: string[]) {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.ALERT_FROM_EMAIL;
+  const to = process.env.ADMIN_NOTIFY_EMAIL || "nyorovai@gmail.com";
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  if (!key || !from) return;
+  const text = [...lines, "", site ? `Admin: ${site}/admin` : "", "", "OnPoint"].filter((l, i, a) => l || a[i - 1]).join("\n");
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [to], subject, text }),
+    });
+    if (!res.ok) console.error("Admin notice failed", res.status, await res.text());
+  } catch (e) {
+    console.error("Admin notice failed", e);
+  }
+}

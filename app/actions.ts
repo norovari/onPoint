@@ -8,7 +8,7 @@ import Decimal from "decimal.js";
 import { createClient, requireSession } from "@/lib/supabase/server";
 import type { ParsedLine } from "@/lib/pos/csv";
 import { sha256Hex } from "@/lib/pos/csv";
-import { sendShiftAlert } from "@/lib/notify";
+import { notifyAdmin, sendShiftAlert } from "@/lib/notify";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -40,6 +40,25 @@ export async function createBusiness(_: ActionState, f: FormData): Promise<Actio
   });
   if (error) return { error: friendly(error) };
   if (f.get("demo") === "on") await supabase.rpc("load_demo_catalogue", { p_business: biz });
+
+  // Tell the OnPoint admin about a brand-new shop (not a repeat of an existing one)
+  const { data: b } = await supabase.from("businesses").select("created_at").eq("id", biz).maybeSingle();
+  if (b && Date.now() - new Date(b.created_at).getTime() < 120_000) {
+    const [{ data: who }, { data: plan }] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.rpc("business_plan", { p_business: biz }),
+    ]);
+    const p = plan as { reference?: string; current_period_end?: string } | null;
+    await notifyAdmin(`New sign-up: ${name}`, [
+      `${name} just signed up for OnPoint.`,
+      "",
+      `Shop: ${location}`,
+      `Owner: ${str(f, "full_name") || "(no name given)"}, ${who.user?.email ?? "no email"}`,
+      `Reference: ${p?.reference ?? "-"}`,
+      `Sample menu loaded: ${f.get("demo") === "on" ? "yes" : "no"}`,
+      "3-day trial started.",
+    ]);
+  }
   redirect("/today");
 }
 
