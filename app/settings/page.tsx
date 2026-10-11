@@ -1,7 +1,7 @@
 import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
-import { addMember, addProduct, addSpecial, deactivateMember, setLowStock, toggleSpecial, updateTolerances } from "@/app/actions";
+import { addMember, addProduct, addSpecial, deactivateMember, setLowStock, setSalesSource, toggleSpecial, updateTolerances } from "@/app/actions";
 import { formatZar } from "@/lib/calculations";
 
 export const metadata = { title: "Settings" };
@@ -17,7 +17,7 @@ export default async function Settings() {
     isManager(s.role)
       ? supabase.from("memberships").select("user_id, role, active, profiles(full_name)").eq("business_id", s.businessId)
       : Promise.resolve({ data: [] as never[] }),
-    supabase.from("businesses").select("cash_tolerance, stock_tolerance_pct").eq("id", s.businessId).single(),
+    supabase.from("businesses").select("cash_tolerance, stock_tolerance_pct, sales_source").eq("id", s.businessId).single(),
     owner ? supabase.from("subscriptions").select("plan, status, current_period_end").eq("business_id", s.businessId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
@@ -159,6 +159,19 @@ export default async function Settings() {
 
       {owner && biz && (
         <>
+          <h2>How sales get into OnPoint</h2>
+          <ActionForm action={setSalesSource} className="sheet">
+            <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>
+              <input type="radio" name="sales_source" value="till" defaultChecked={biz.sales_source !== "counts"} style={{ width: "auto", marginTop: 4 }} />
+              <span><strong>From our till.</strong> Each shift, upload the till’s sales export (any layout, CSV or Excel) or type in its end-of-day report. Most detailed: shows exactly which product is short.</span>
+            </label>
+            <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400, marginTop: 10 }}>
+              <input type="radio" name="sales_source" value="counts" defaultChecked={biz.sales_source === "counts"} style={{ width: "auto", marginTop: 4 }} />
+              <span><strong>Work it out from our counts.</strong> No till file needed. At close, OnPoint prices the stock that left the shelf and checks it against the cash and card you count, so you still see if money is missing.</span>
+            </label>
+            <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
+          </ActionForm>
+
           <h2>When to flag a difference</h2>
           <ActionForm action={updateTolerances} className="sheet">
             <div className="row">

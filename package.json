@@ -18,6 +18,7 @@
     "papaparse": "^5.7.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "read-excel-file": "9.3.10",
     "server-only": "^0.0.1"
   },
   "devDependencies": {

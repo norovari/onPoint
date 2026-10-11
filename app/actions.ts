@@ -458,6 +458,39 @@ export async function deactivateMember(_: ActionState, f: FormData): Promise<Act
   return { ok: "Access removed. Their history is kept." };
 }
 
+// How sales get into OnPoint: from a till file, or worked out from the counts
+export async function setSalesSource(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase, businessId } = await requireSession();
+  const source = str(f, "sales_source");
+  const { error } = await supabase.rpc("set_sales_source", { p_business: businessId, p_source: source });
+  if (error) return { error: friendly(error) };
+  revalidatePath("/settings");
+  return {
+    ok: source === "counts"
+      ? "Saved. At each close, OnPoint works out what was sold from the counts and checks it against the money taken."
+      : "Saved. Import your till file on each shift before closing.",
+  };
+}
+
+// Remembers how this shop's till file is laid out and which items are which
+export async function savePosLayout(layout: { columns?: Record<string, string>; links?: Record<string, string>; skip?: string[] }): Promise<ActionState> {
+  const { supabase, businessId } = await requireSession();
+  const { error } = await supabase.rpc("set_pos_layout", { p_business: businessId, p_layout: layout });
+  if (error) return { error: friendly(error) };
+  return { ok: "Layout saved." };
+}
+
+// Cash and card totals from the till, for files without a payment column
+export async function saveTillTotals(input: { shiftId: string; cash: string; card: string }): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const cash = money(input.cash.trim()), card = money(input.card.trim() || "0");
+  if (cash === null || card === null) return { error: "Enter the cash and card totals as numbers." };
+  const { error } = await supabase.rpc("record_till_totals", { p_shift: input.shiftId, p_cash: cash, p_card: card });
+  if (error) return { error: friendly(error) };
+  revalidatePath(`/shifts/${input.shiftId}`);
+  return { ok: "Cash and card totals saved." };
+}
+
 export async function updateTolerances(_: ActionState, f: FormData): Promise<ActionState> {
   const { supabase, businessId } = await requireSession();
   const cash = money(str(f, "cash_tolerance"));

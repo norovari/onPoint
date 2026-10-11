@@ -22,7 +22,7 @@ import { CASH_EVENT, MOVEMENT_TYPE, SHIFT_STATUS, when } from "@/lib/labels";
 
 export const metadata = { title: "Shift" };
 
-type Product = { id: string; sku: string; name: string; base_unit: string; tracking_mode: string };
+type Product = { id: string; sku: string; name: string; base_unit: string; tracking_mode: string; pos_code: string | null };
 type Count = { product_id: string; count_type: string; quantity: string; version: number };
 
 const STAGES = ["opening", "active", "closing_submitted", "approved"];
@@ -42,7 +42,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
 
   const [{ data: products }, { data: counts }, { data: movements }, { data: cashEvents }, { data: imports }, { data: approvals }, { data: settlementsRows }] =
     await Promise.all([
-      supabase.from("products").select("id, sku, name, base_unit, tracking_mode").eq("active", true).order("sku"),
+      supabase.from("products").select("id, sku, name, base_unit, tracking_mode, pos_code").eq("active", true).order("sku"),
       supabase.from("stock_counts").select("product_id, count_type, quantity, version").eq("shift_id", id),
       supabase
         .from("stock_movements")
@@ -58,6 +58,8 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
     supabase.from("specials").select("id, name, deal_price, items_per_deal, special_products(product_id)").eq("active", true).order("name"),
     supabase.from("special_sales").select("id, deals, created_at, specials(name)").eq("shift_id", id).order("created_at"),
   ]);
+  const { data: biz } = await supabase.from("businesses").select("sales_source, pos_layout").eq("id", s.businessId).single();
+  const fromCounts = biz?.sales_source === "counts";
 
   const status = shift.status as string;
   const st = SHIFT_STATUS[status];
@@ -218,42 +220,50 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
             </>
           )}
 
+          {manager && fromCounts && (
+            <>
+              <h2>Sales</h2>
+              <p className="notice">This shop works out sales from the stock counts. When you close, OnPoint prices what left the shelf and checks it against the cash and card you count. No till file needed. <Link href="/settings">Change this</Link></p>
+            </>
+          )}
           {manager && (
             <>
-              <h2>Till report</h2>
-              <p className="muted small">If your till can export a file, import it. If not, type the figures from the till’s end-of-day report.</p>
-              <details className="sheet">
-                <summary>Type in the till report</summary>
-                <ActionForm action={enterTillSales} hidden={{ shift_id: id }}>
-                  <p className="muted small">Quantity sold of each product at normal price (leave specials out; record them above). Amounts are worked out from your prices.</p>
-                  <ul className="lines">
-                    {(products ?? []).map((p) => (
-                      <li key={p.id} className="line">
-                        <label htmlFor={`sold-${p.id}`} className="name" style={{ margin: 0 }}>{p.name} <span className="hint">{p.base_unit === "g" ? "grams" : "units"}</span></label>
-                        <input id={`sold-${p.id}`} name={`sold:${p.id}`} type="number" inputMode="decimal" min="0" step="any" style={{ width: 110 }} />
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="row">
-                    <div><label htmlFor="till_cash">Cash sales on the till report (R)</label><input id="till_cash" name="till_cash" type="number" inputMode="decimal" step="0.01" min="0" required /></div>
-                    <div><label htmlFor="till_card">Card sales on the till report (R)</label><input id="till_card" name="till_card" type="number" inputMode="decimal" step="0.01" min="0" defaultValue="0" /></div>
+              {!fromCounts && (
+                <>
+                  <h2>Till sales</h2>
+                  <div className="sheet">
+                    <PosImport shiftId={id} products={(products ?? []) as Product[]} layout={(biz?.pos_layout ?? {}) as object} />
+                    {(imports ?? []).length > 0 && (
+                      <p className="muted small" style={{ marginBottom: 0 }}>
+                        Imported: {(imports ?? []).map((i) => `${i.file_name} (${i.row_count} lines, ${formatZar(i.pos_total_sales)})`).join("; ")}
+                      </p>
+                    )}
                   </div>
-                  <div style={{ marginTop: 12 }}><Submit>Save till report</Submit></div>
-                </ActionForm>
-              </details>
-              {(shift.till_cash_total !== null || shift.till_card_total !== null) && (
-                <p className="muted small">Till report saved: cash {formatZar(shift.till_cash_total)}, card {formatZar(shift.till_card_total)}.</p>
+                  <details className="sheet">
+                    <summary>No file? Type in the till’s end-of-day report</summary>
+                    <ActionForm action={enterTillSales} hidden={{ shift_id: id }}>
+                      <p className="muted small">Quantity sold of each product at normal price (leave specials out; record them above). Amounts are worked out from your prices.</p>
+                      <ul className="lines">
+                        {(products ?? []).map((p) => (
+                          <li key={p.id} className="line">
+                            <label htmlFor={`sold-${p.id}`} className="name" style={{ margin: 0 }}>{p.name} <span className="hint">{p.base_unit === "g" ? "grams" : "units"}</span></label>
+                            <input id={`sold-${p.id}`} name={`sold:${p.id}`} type="number" inputMode="decimal" min="0" step="any" style={{ width: 110 }} />
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="row">
+                        <div><label htmlFor="till_cash">Cash sales on the till report (R)</label><input id="till_cash" name="till_cash" type="number" inputMode="decimal" step="0.01" min="0" required /></div>
+                        <div><label htmlFor="till_card">Card sales on the till report (R)</label><input id="till_card" name="till_card" type="number" inputMode="decimal" step="0.01" min="0" defaultValue="0" /></div>
+                      </div>
+                      <div style={{ marginTop: 12 }}><Submit>Save till report</Submit></div>
+                    </ActionForm>
+                    <p className="small muted" style={{ marginBottom: 0 }}>No till report either? The owner can switch to working out sales from the counts in <Link href="/settings">Settings</Link>.</p>
+                  </details>
+                  {(shift.till_cash_total !== null || shift.till_card_total !== null) && (
+                    <p className="muted small">Till totals saved: cash {formatZar(shift.till_cash_total)}, card {formatZar(shift.till_card_total)}.</p>
+                  )}
+                </>
               )}
-
-              <h2>Import till file</h2>
-              <div className="sheet">
-                <PosImport shiftId={id} />
-                {(imports ?? []).length > 0 && (
-                  <p className="muted small" style={{ marginBottom: 0 }}>
-                    Imported: {(imports ?? []).map((i) => `${i.file_name} (${i.row_count} lines, ${formatZar(i.pos_total_sales)})`).join("; ")}
-                  </p>
-                )}
-              </div>
 
               <h2>Cash taken out or put in</h2>
               <ActionForm action={recordCashEvent} hidden={{ shift_id: id }} className="sheet">
