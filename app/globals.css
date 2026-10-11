@@ -191,3 +191,13 @@ details summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 /* Spot-checks: products not on this shift's count list */
 .line[data-status="not_counted"] { border-left-color: var(--rule); }
 .diff[data-status="not_counted"] { color: var(--ink-soft); font-size: 17px; }
+
+/* FAQ */
+details.faq { padding: 0; }
+details.faq summary { cursor: pointer; font-weight: 700; padding: 14px 44px 14px 16px; list-style: none; position: relative; }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::after { content: "+"; position: absolute; right: 16px; top: 12px; font-size: 20px; font-weight: 400; color: var(--ink-soft); }
+details.faq[open] summary::after { content: "−"; }
+details.faq[open] summary { border-bottom: 1px solid var(--rule); }
+details.faq .faq-a { padding: 4px 16px 12px; }
+details.faq .faq-a ul { padding-left: 20px; }

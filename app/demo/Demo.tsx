@@ -178,7 +178,7 @@ export default function Demo({ businessName }: { businessName: string }) {
       </div>
       <header className="topbar">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>On<b>Point</b></Link>
-        <nav className="nav"><a href="#prices">Prices</a><Link href="/login">Sign in</Link></nav>
+        <nav className="nav"><a href="#prices">Prices</a><Link href="/faq">Questions</Link><Link href="/login">Sign in</Link></nav>
       </header>
       <main className="wrap">
         <h1 style={{ marginTop: 8 }}>{businessName}</h1>

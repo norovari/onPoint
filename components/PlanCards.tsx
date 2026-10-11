@@ -30,7 +30,7 @@ export function PlanCards({ signup, name }: { signup: string; name: string }) {
         ))}
       </div>
       <p className="small" style={{ marginTop: 10 }}>
-        <Link href={signup}>Start {name ? `${name}’s` : "your"} free trial</Link> · <Link href="/pricing">Compare all plans</Link>
+        <Link href={signup}>Start {name ? `${name}’s` : "your"} free trial</Link> · <Link href="/pricing">Compare all plans</Link> · <Link href="/faq">Questions</Link>
       </p>
     </section>
   );

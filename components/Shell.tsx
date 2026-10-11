@@ -16,9 +16,12 @@ export async function Shell({ children, businessName }: { children: React.ReactN
       <main className="wrap">
         {businessName && <p className="muted small" style={{ margin: 0 }}>{businessName}</p>}
         {children}
-        <form action="/auth/signout" method="post" className="noprint" style={{ marginTop: 48 }}>
-          <button type="submit" className="quiet">Sign out</button>
-        </form>
+        <div className="noprint" style={{ marginTop: 48, display: "flex", gap: 16, alignItems: "center" }}>
+          <Link href="/faq" className="small">Help and questions</Link>
+          <form action="/auth/signout" method="post">
+            <button type="submit" className="quiet">Sign out</button>
+          </form>
+        </div>
       </main>
     </>
   );

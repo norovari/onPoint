@@ -8,7 +8,7 @@ export default function Pricing() {
     <>
       <header className="topbar">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>On<b>Point</b></Link>
-        <nav className="nav"><Link href="/login">Sign in</Link></nav>
+        <nav className="nav"><Link href="/faq">Questions</Link><Link href="/login">Sign in</Link></nav>
       </header>
       <main className="wrap">
         <h1>Pricing</h1>
