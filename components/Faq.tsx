@@ -36,7 +36,7 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
         a: (
           <ul>
             <li>A shift summary as soon as the shift closes: what tallied, what didn’t, and by how much. Print it or save it as a PDF from your browser.</li>
-            <li>An email to the owner when a shift doesn’t tally (Starter plan and up).</li>
+            <li>An email to the owner when a shift closes, with what didn’t tally and everyone’s end-of-shift statements (Starter plan and up).</li>
             <li>A monthly report: what sells and when, stock to keep an eye on, and what to do next (Business plan).</li>
           </ul>
         ),
@@ -129,6 +129,15 @@ export function Faq({ signedIn }: { signedIn: boolean }) {
     <>
       <h1>Questions</h1>
       <p className="lede">Your till knows what was sold. OnPoint checks it against what’s left on the shelf and in the till, at every handover.</p>
+
+      <div className="sheet" style={{ borderWidth: 2, borderColor: "var(--ink)" }}>
+        <p style={{ margin: "0 0 6px", fontWeight: 800 }}>New, from shop owners’ feedback</p>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          <li>The count is split at random between whoever is on shift, so everyone counts different products every time.</li>
+          <li>At close, each person answers three quick questions on their phone (anything not rung up, anything happen to stock, anything the owner should know), takes photos of the jars on the scale and the cash drawer, and confirms with their own password.</li>
+          <li>The owner gets it all in an email that night.</li>
+        </ul>
+      </div>
 
       {QA.map((g, i) => (
         <section key={g.group} aria-labelledby={`faq-g${i}`}>
