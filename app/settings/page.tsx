@@ -1,12 +1,21 @@
 import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
-import { addMember, addProduct, addSpecial, deactivateMember, setLowStock, setSalesSource, toggleSpecial, updateTolerances } from "@/app/actions";
+import { addMember, addProduct, addSpecial, deactivateMember, setCountSettings, setProductOptions, setSalesSource, toggleSpecial, updateTolerances } from "@/app/actions";
 import { formatZar } from "@/lib/calculations";
 import { ProductImport } from "@/components/ProductImport";
 import { CATEGORIES } from "@/lib/products/import";
 
 export const metadata = { title: "Settings" };
+
+function optionSummary(p: { always_count: boolean; low_stock_level: string | null; allowance_pct: string | null; container_weight: string | null }) {
+  return [
+    p.always_count && "every shift",
+    p.low_stock_level !== null && `warn below ${Number(p.low_stock_level)}`,
+    p.allowance_pct !== null && Number(p.allowance_pct) > 0 && `${Number(p.allowance_pct)}% allowance`,
+    p.container_weight !== null && Number(p.container_weight) > 0 && `jar ${Number(p.container_weight)}g`,
+  ].filter(Boolean).join(", ");
+}
 
 export default async function Settings() {
   const s = await requireSession();
@@ -15,11 +24,11 @@ export default async function Settings() {
 
   const { data: specials } = await supabase.from("specials").select("id, name, code, deal_price, items_per_deal, active, special_products(product_id)").order("name");
   const [{ data: products }, { data: team }, { data: biz }, { data: sub }] = await Promise.all([
-    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, category, active, low_stock_level, product_prices(unit_price, valid_from, valid_to)").order("category").order("name"),
+    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, category, active, low_stock_level, always_count, allowance_pct, container_weight, product_prices(unit_price, valid_from, valid_to)").order("category").order("name"),
     isManager(s.role)
       ? supabase.from("memberships").select("user_id, role, active, profiles(full_name)").eq("business_id", s.businessId)
       : Promise.resolve({ data: [] as never[] }),
-    supabase.from("businesses").select("cash_tolerance, stock_tolerance_pct, sales_source").eq("id", s.businessId).single(),
+    supabase.from("businesses").select("cash_tolerance, stock_tolerance_pct, sales_source, count_mode, spot_per_shift, full_count_days").eq("id", s.businessId).single(),
     owner ? supabase.from("subscriptions").select("plan, status, current_period_end").eq("business_id", s.businessId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
@@ -34,7 +43,7 @@ export default async function Settings() {
       <p className="muted small">Your menu. Till items are linked to these products the first time you upload a till file.</p>
       <div className="scroll">
         <table className="data">
-          <thead><tr><th>Product</th><th>Category</th><th>Counted in</th><th className="num">Price</th><th>Warn when below</th></tr></thead>
+          <thead><tr><th>Product</th><th>Category</th><th>Counted in</th><th className="num">Price</th><th>Counting</th></tr></thead>
           <tbody>
             {(products ?? []).map((p) => {
               const price = currentPrice(p as never);
@@ -45,14 +54,28 @@ export default async function Settings() {
                   <td>{p.base_unit === "g" ? "grams" : "units"}</td>
                   <td className="num">{price === undefined ? "—" : p.base_unit === "g" ? `${formatZar(price)}/g` : formatZar(price)}</td>
                   <td>
-                    {owner ? (
-                      <ActionForm action={setLowStock} hidden={{ product_id: p.id }}>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <input name="low_stock_level" aria-label={`Warn when ${p.name} is below`} inputMode="decimal" defaultValue={p.low_stock_level ?? ""} style={{ width: 80, padding: "6px 8px" }} />
-                          <Submit className="quiet">Save</Submit>
-                        </div>
-                      </ActionForm>
-                    ) : (p.low_stock_level ?? "—")}
+                    <span className="small">{optionSummary(p) || <span className="muted">standard</span>}</span>
+                    {owner && (
+                      <details>
+                        <summary className="small">Change</summary>
+                        <ActionForm action={setProductOptions} hidden={{ product_id: p.id }}>
+                          <label className="check" style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 400 }}>
+                            <input type="checkbox" name="always_count" defaultChecked={p.always_count} style={{ width: "auto" }} /> Count every shift
+                          </label>
+                          <label htmlFor={`low-${p.id}`}>Warn when below</label>
+                          <input id={`low-${p.id}`} name="low_stock_level" inputMode="decimal" defaultValue={p.low_stock_level ?? ""} style={{ width: 100 }} />
+                          {p.base_unit === "g" && (
+                            <>
+                              <label htmlFor={`alw-${p.id}`}>Allowance on sales, % <span className="hint">extra you’re happy to give, e.g. 10 = 2.2g on a 2g bag</span></label>
+                              <input id={`alw-${p.id}`} name="allowance_pct" inputMode="decimal" defaultValue={p.allowance_pct ?? ""} style={{ width: 100 }} />
+                              <label htmlFor={`jar-${p.id}`}>Empty jar, grams <span className="hint">staff weigh the whole jar; this is taken off</span></label>
+                              <input id={`jar-${p.id}`} name="container_weight" inputMode="decimal" defaultValue={p.container_weight ?? ""} style={{ width: 100 }} />
+                            </>
+                          )}
+                          <div style={{ marginTop: 8 }}><Submit className="quiet">Save</Submit></div>
+                        </ActionForm>
+                      </details>
+                    )}
                   </td>
                 </tr>
               );
@@ -176,6 +199,23 @@ export default async function Settings() {
               <input type="radio" name="sales_source" value="counts" defaultChecked={biz.sales_source === "counts"} style={{ width: "auto", marginTop: 4 }} />
               <span><strong>Work it out from our counts.</strong> No till file needed. At close, OnPoint prices the stock that left the shelf and checks it against the cash and card you count, so you still see if money is missing.</span>
             </label>
+            <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
+          </ActionForm>
+
+          <h2>How you count stock</h2>
+          <ActionForm action={setCountSettings} className="sheet">
+            <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>
+              <input type="radio" name="count_mode" value="full" defaultChecked={biz.count_mode !== "spot"} style={{ width: "auto", marginTop: 4 }} />
+              <span><strong>Count everything at every close.</strong> Best for a small menu.</span>
+            </label>
+            <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400, marginTop: 10 }}>
+              <input type="radio" name="count_mode" value="spot" defaultChecked={biz.count_mode === "spot"} disabled={biz.sales_source === "counts"} style={{ width: "auto", marginTop: 4 }} />
+              <span><strong>Spot-check a few products each shift.</strong> OnPoint picks the list: some at random, ones that didn’t tally recently, and ones not checked for a while. Everything else carries forward from the till sales. Cash is still checked every shift.{biz.sales_source === "counts" && <><br /><span className="muted">Needs till sales: without a till file the full count is how sales are worked out.</span></>}</span>
+            </label>
+            <div className="row" style={{ marginTop: 10 }}>
+              <div><label htmlFor="c-per">Products per shift</label><input id="c-per" name="spot_per_shift" type="number" min="3" max="200" defaultValue={biz.spot_per_shift ?? 12} /></div>
+              <div><label htmlFor="c-days">Check every product at least every … days</label><input id="c-days" name="full_count_days" type="number" min="1" max="60" defaultValue={biz.full_count_days ?? 7} /></div>
+            </div>
             <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
           </ActionForm>
 

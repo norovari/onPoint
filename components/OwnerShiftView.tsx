@@ -44,7 +44,7 @@ export function OwnerShiftView({
 
   const stock = recon.stock as any[];
   const missing = stock
-    .filter((s) => n(s.variance) !== null && n(s.variance)! < 0 && prices[s.product_id])
+    .filter((s) => s.status === "variance" && n(s.variance) !== null && n(s.variance)! < 0 && prices[s.product_id])
     .map((s) => ({ ...s, value: new Decimal(s.variance).negated().times(prices[s.product_id]).toDecimalPlaces(2).toNumber() }));
   const missingTotal = missing.reduce((a, s) => a + s.value, 0);
   const openEx = exceptions.filter((e) => e.status === "open" || e.status === "explained");
@@ -190,14 +190,16 @@ export function OwnerShiftView({
           <ul className="lines">
             {stock.map((s) => {
               const v = n(s.variance);
-              const st = s.went_into_minus || (v !== null && v < 0) ? "variance" : v === null ? "missing_evidence" : v > 0 ? "pending" : "matched";
+              const notCounted = s.status === "not_counted";
+              const within = s.status === "matched" && v !== null && v !== 0;
+              const st = notCounted ? "pending" : s.went_into_minus || (s.status === "variance" && v !== null && v < 0) ? "variance" : v === null ? "missing_evidence" : s.status === "variance" && v > 0 ? "pending" : "matched";
               const val = missing.find((m) => m.product_id === s.product_id)?.value;
               return (
                 <li key={s.product_id} className="line" data-status={st}>
                   <span className="name">{s.name}</span>
-                  <span className="diff" data-status={st} style={{ fontSize: 20 }}>{v === null ? "Not counted" : v === 0 ? "Tallies" : signedQty(v, s.base_unit)}</span>
+                  <span className="diff" data-status={st} style={{ fontSize: 20 }}>{notCounted ? "Not counted" : v === null ? "Not counted" : v === 0 ? "Tallies" : within ? "Within allowance" : signedQty(v, s.base_unit)}</span>
                   <span className="meta">
-                    Counted {formatQty(s.counted_closing, s.base_unit)}, should have {formatQty(s.expected_closing, s.base_unit)}
+                    {notCounted ? <>Not on this shift’s count list. Carried forward at {formatQty(s.expected_closing, s.base_unit)}</> : <>Counted {formatQty(s.counted_closing, s.base_unit)}, should have {formatQty(s.expected_closing, s.base_unit)}{within ? ` (${signedQty(v, s.base_unit)}, within your allowance)` : ""}</>}
                     {val ? `. Worth ${formatZar(val)}` : ""}{s.went_into_minus ? ". Went into minus" : ""}
                   </span>
                 </li>

@@ -90,22 +90,32 @@ export async function saveCounts(_: ActionState, f: FormData): Promise<ActionSta
   }
   if (entries.length === 0) return { error: "Enter at least one count." };
 
+  // Jars: staff weigh the whole jar, so take the empty jar off
+  const { data: jars } = await supabase.from("products").select("id, name, container_weight").in("id", entries.map((e) => e.product_id)).not("container_weight", "is", null);
+  for (const j of jars ?? []) {
+    const e = entries.find((x) => x.product_id === j.id);
+    if (!e || !(Number(j.container_weight) > 0)) continue;
+    const net = new Decimal(e.quantity).minus(String(j.container_weight));
+    if (net.isNegative()) return { error: `${j.name}: ${e.quantity}g is less than the empty jar (${Number(j.container_weight)}g). Weigh the jar with the stock in it.` };
+    e.quantity = net.toString();
+  }
+
   const { data: existing } = await supabase
     .from("stock_counts")
-    .select("product_id, version, quantity")
+    .select("product_id, version, quantity, source")
     .eq("shift_id", shiftId)
     .eq("count_type", countType);
-  const latest = new Map<string, { version: number; quantity: string }>();
+  const latest = new Map<string, { version: number; quantity: string; carried: boolean }>();
   for (const c of existing ?? []) {
     const cur = latest.get(c.product_id);
-    if (!cur || cur.version < c.version) latest.set(c.product_id, { version: c.version, quantity: String(c.quantity) });
+    if (!cur || cur.version < c.version) latest.set(c.product_id, { version: c.version, quantity: String(c.quantity), carried: c.source === "carried" });
   }
 
   const rows = [];
   for (const e of entries) {
     const prev = latest.get(e.product_id);
     if (prev && new Decimal(prev.quantity).equals(e.quantity)) continue; // unchanged
-    if (prev && !reason) return { error: "Some counts were already submitted. Add a reason for the recount." };
+    if (prev && !prev.carried && !reason) return { error: "Some counts were already submitted. Add a reason for the recount." };
     rows.push({
       business_id: businessId,
       shift_id: shiftId,
@@ -113,7 +123,7 @@ export async function saveCounts(_: ActionState, f: FormData): Promise<ActionSta
       count_type: countType,
       quantity: e.quantity,
       version: (prev?.version ?? 0) + 1,
-      reason: prev ? reason : null,
+      reason: prev ? (prev.carried ? reason || "Counted (was carried forward)" : reason) : null,
       submitted_by: userId,
     });
   }
@@ -529,7 +539,8 @@ export async function setSalesSource(_: ActionState, f: FormData): Promise<Actio
 }
 
 // Remembers how this shop's till file is laid out and which items are which
-export async function savePosLayout(layout: { columns?: Record<string, string>; links?: Record<string, string>; skip?: string[] }): Promise<ActionState> {
+export async function savePosLayout(layout: { columns?: Record<string, string>; links?: Record<string, string>; skip?: string[]; sizes?: Record<string, number> }): Promise<ActionState> {
+  for (const v of Object.values(layout.sizes ?? {})) if (!(typeof v === "number" && v > 0 && v <= 1000)) return { error: "Grams in each sale must be a number above 0." };
   const { supabase, businessId } = await requireSession();
   const { error } = await supabase.rpc("set_pos_layout", { p_business: businessId, p_layout: layout });
   if (error) return { error: friendly(error) };
@@ -590,4 +601,47 @@ export async function adminSetPlan(_: ActionState, f: FormData): Promise<ActionS
   if (error) return { error: friendly(error) };
   revalidatePath("/admin");
   return { ok: "Plan updated." };
+}
+
+export async function requestFullCount(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const shiftId = str(f, "shift_id");
+  const { error } = await supabase.rpc("request_full_count", { p_shift: shiftId });
+  if (error) return { error: friendly(error) };
+  revalidatePath(`/shifts/${shiftId}`);
+  return { ok: "Everything is on tonight's count list." };
+}
+
+export async function setCountSettings(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase, businessId } = await requireSession();
+  const { error } = await supabase.rpc("set_count_settings", {
+    p_business: businessId,
+    p_mode: str(f, "count_mode"),
+    p_per_shift: Number(str(f, "spot_per_shift") || 12),
+    p_full_days: Number(str(f, "full_count_days") || 7),
+  });
+  if (error) return { error: friendly(error) };
+  revalidatePath("/settings");
+  return { ok: "Saved." };
+}
+
+export async function setProductOptions(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const num = (k: string) => { const v = str(f, k).replace(",", "."); return v === "" ? null : v; };
+  for (const k of ["low_stock_level", "allowance_pct", "container_weight"]) {
+    const v = num(k);
+    if (v !== null && !DEC.test(v)) return { error: `"${v}" isn't a number.` };
+  }
+  const allowance = num("allowance_pct");
+  if (allowance !== null && Number(allowance) > 50) return { error: "The allowance can be at most 50%." };
+  const { data, error } = await supabase.from("products").update({
+    low_stock_level: num("low_stock_level"),
+    allowance_pct: allowance,
+    container_weight: num("container_weight"),
+    always_count: f.get("always_count") === "on",
+  }).eq("id", str(f, "product_id")).select("id");
+  if (error) return { error: friendly(error) };
+  if (!data?.length) return { error: "Only the owner can change products." };
+  revalidatePath("/settings");
+  return { ok: "Saved." };
 }

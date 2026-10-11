@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import Papa from "papaparse";
-import { buildLines, collectItems, detectDelimiter, findHeaderRow, guessMapping, linkItems, parseDateTime, parseMoney, paymentOf, type Product } from "@/lib/pos/smart";
+import { buildLines, collectItems, detectDelimiter, findHeaderRow, guessMapping, linkItems, parseDateTime, parseMoney, paymentOf, sizeFromName, type Product } from "@/lib/pos/smart";
 
 const products: Product[] = [
   { id: "p-gelato", name: "Greenhouse flower: Gelato", sku: "FL-GH1", pos_code: "FL04" },
@@ -92,5 +92,23 @@ S9,2026-10-11 15:00,ED-GUM,Gummies,1,0,15.65,120.00,Visa,Void`);
   test("tells you when it can't find the columns", () => {
     const r = run(`a,b,c\n1,2,3`);
     expect(r.sure).toBe(false);
+  });
+});
+
+describe("fixed bags", () => {
+  test("reads the bag size from the item name", () => {
+    expect(sizeFromName("Gelato 2g")).toBe(2);
+    expect(sizeFromName("OG Kush 3,5 gram bag")).toBe(3.5);
+    expect(sizeFromName("Pre-roll")).toBeNull();
+    expect(sizeFromName("Edible 10mg")).toBeNull();
+  });
+  test("each sale of a 2g bag takes 2g of stock", () => {
+    const products: Product[] = [{ id: "p1", name: "Gelato", sku: "GEL", pos_code: null, base_unit: "g" }];
+    const rows = [["Gelato 2g", "3", "150"]];
+    const mapping = { name: 0, qty: 1, amount: 2 };
+    const key = collectItems(rows, mapping)[0].key;
+    const b = buildLines(rows, mapping, { [key]: "p1" }, [], products, new Date(), "t", { [key]: 2 });
+    expect(b.lines[0].quantity).toBe("6");
+    expect(b.lines[0].gross_amount).toBe("150.00");
   });
 });

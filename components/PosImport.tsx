@@ -7,7 +7,7 @@ import { useMemo, useState, useTransition } from "react";
 import Papa from "papaparse";
 import { sha256Hex } from "@/lib/pos/csv";
 import {
-  FIELDS, buildLines, cellText, collectItems, detectDelimiter, findHeaderRow, guessMapping, linkItems,
+  FIELDS, buildLines, cellText, collectItems, detectDelimiter, findHeaderRow, guessMapping, linkItems, sizeFromName,
   type Field, type Layout, type Mapping, type Product,
 } from "@/lib/pos/smart";
 import { importPos, savePosLayout, saveTillTotals } from "@/app/actions";
@@ -26,6 +26,8 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
   const [showMap, setShowMap] = useState(false);
   const [links, setLinks] = useState<Record<string, string>>(layout.links ?? {});
   const [skip, setSkip] = useState<string[]>(layout.skip ?? []);
+  const [sizes, setSizes] = useState<Record<string, number>>(layout.sizes ?? {});
+  const [items, setItems] = useState<Item[]>([]);
   const [toLink, setToLink] = useState<Item[]>([]);
   const [cash, setCash] = useState("");
   const [card, setCard] = useState("");
@@ -38,6 +40,13 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
 
   function relink(m: Mapping, b: string[][]) {
     const items = collectItems(b, m);
+    setItems(items);
+    // Suggest bag sizes from names like "Gelato 2g" (only for new items)
+    setSizes((prev) => {
+      const next = { ...prev };
+      for (const it of items) if (next[it.key] === undefined) { const g = sizeFromName(it.name || it.code); if (g && g !== 1) next[it.key] = g; }
+      return next;
+    });
     const l = linkItems(items, products, { links: layout.links, skip: layout.skip });
     setLinks((prev) => ({ ...prev, ...l.linked }));
     setToLink(items.filter((it) => !(layout.skip ?? []).includes(it.key) && !l.linked[it.key]));
@@ -78,20 +87,22 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
   }
 
   const built = useMemo(
-    () => (rows.length ? buildLines(body, mapping, links, skip, products, new Date(), tag) : null),
-    [rows.length, body, mapping, links, skip, products, tag],
+    () => (rows.length ? buildLines(body, mapping, links, skip, products, new Date(), tag, sizes) : null),
+    [rows.length, body, mapping, links, skip, products, tag, sizes],
   );
   const missing = FIELDS.filter((f) => f.required && mapping[f.key] === undefined).length > 0
     || (mapping.name === undefined && mapping.code === undefined)
     || (mapping.amount === undefined && mapping.price === undefined);
   const open = toLink.filter((it) => !links[it.key] && !skip.includes(it.key));
+  const weighed = new Set(products.filter((p) => p.base_unit === "g").map((p) => p.id));
+  const bagItems = items.filter((it) => links[it.key] && weighed.has(links[it.key]) && !skip.includes(it.key));
   const sample = (i: number | undefined) => (i === undefined ? "" : body.find((r) => r[i])?.[i] ?? "");
 
   function doImport() {
     if (!built) return;
     start(async () => {
       const columns = Object.fromEntries(Object.entries(mapping).map(([f, i]) => [f, headers[i as number]]));
-      const saved = await savePosLayout({ columns, links, skip });
+      const saved = await savePosLayout({ columns, links, skip, sizes });
       if (saved?.error) { setResult(saved); return; }
       const r = await importPos({ shiftId, fileName: fileName || "till.csv", sha256: hash, totals: built.totals, lines: built.lines });
       if (r?.error) { setResult(r); return; }
@@ -161,6 +172,27 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
               </ul>
               {open.length > 40 && <p className="small muted">…and {open.length - 40} more. Link these first, then the rest appear.</p>}
             </div>
+          )}
+
+          {/* Fixed bags on weighed products */}
+          {!missing && bagItems.length > 0 && (
+            <details className="sheet" style={{ marginTop: 12 }} open={bagItems.some((it) => layout.sizes?.[it.key] === undefined && sizes[it.key] !== undefined)}>
+              <summary><strong>Grams in each sale</strong> <span className="small muted">for flower sold in fixed bags</span></summary>
+              <p className="small muted">If the till sells “2g for R50”, each sale is 2g, so 3 sold means 6g left the jar. Leave as 1 if the till already records grams. We’ll remember this.</p>
+              <ul className="lines">
+                {bagItems.map((it) => (
+                  <li key={it.key} className="line">
+                    <span className="name" style={{ margin: 0 }}>{it.name || it.code}</span>
+                    <input aria-label={`Grams in each sale of ${it.name || it.code}`} inputMode="decimal" style={{ width: 90 }}
+                      defaultValue={String(sizes[it.key] ?? 1)}
+                      onChange={(e) => {
+                        const n = Number(e.target.value.replace(",", "."));
+                        setSizes((s) => { const x = { ...s }; if (n > 0 && n !== 1) x[it.key] = n; else delete x[it.key]; return x; });
+                      }} /> g
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
 
           {/* Check and import */}

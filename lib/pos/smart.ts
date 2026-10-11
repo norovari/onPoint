@@ -29,9 +29,18 @@ export interface Layout {
   columns?: Partial<Record<Field, string>>; // field -> heading text, as last confirmed
   links?: Record<string, string>; // till item key -> OnPoint product id
   skip?: string[]; // till item keys that aren't stock (lighters, papers…)
+  sizes?: Record<string, number>; // till item key -> grams in each sale ("2g bag" = 2)
 }
 
-export interface Product { id: string; name: string; sku: string; pos_code: string | null }
+export interface Product { id: string; name: string; sku: string; pos_code: string | null; base_unit?: string }
+
+// "Gelato 2g", "Bag 3.5 gram" -> grams in one sale. Null when the name doesn't say.
+export function sizeFromName(name: string): number | null {
+  const m = /(?:^|[^\d.,])(\d+(?:[.,]\d+)?)\s*(?:g|gr|grams?)\b/i.exec(name);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  return n > 0 && n <= 1000 ? n : null;
+}
 
 // Words that point at each field, strongest first. Headings are lower-cased and
 // stripped of punctuation before matching.
@@ -206,7 +215,7 @@ export interface Built {
 // "not matched" rather than disappear.
 export function buildLines(
   rows: string[][], mapping: Mapping, links: Record<string, string>, skip: string[],
-  products: Product[], fallbackTime: Date, fileTag: string,
+  products: Product[], fallbackTime: Date, fileTag: string, sizes: Record<string, number> = {},
 ): Built {
   const errors: string[] = [];
   const lines: ParsedLine[] = [];
@@ -245,6 +254,9 @@ export function buildLines(
     const n = (perTxn.get(txn) ?? 0) + 1;
     perTxn.set(txn, n);
     const product = links[key] ? byId.get(links[key]) : undefined;
+    // Fixed bags: the till counts bags, stock is in grams
+    const size = product ? sizes[key] : undefined;
+    if (size && size > 0 && size !== 1) qty = qty.times(size);
     const method = paymentOf(cell(r, "payment"));
     // The till's amount is tax-inclusive after discount on most exports; OnPoint
     // stores gross before discount, so add any discount back.

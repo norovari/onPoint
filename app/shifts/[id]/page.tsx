@@ -15,6 +15,7 @@ import {
   recordMovement,
   recordSettlement,
   reviewShift,
+  requestFullCount,
   saveCounts,
   submitClosing,
 } from "@/app/actions";
@@ -23,8 +24,8 @@ import { CASH_EVENT, MOVEMENT_TYPE, SHIFT_STATUS, when } from "@/lib/labels";
 
 export const metadata = { title: "Shift" };
 
-type Product = { id: string; sku: string; name: string; base_unit: string; tracking_mode: string; pos_code: string | null };
-type Count = { product_id: string; count_type: string; quantity: string; version: number };
+type Product = { id: string; sku: string; name: string; base_unit: string; tracking_mode: string; pos_code: string | null; container_weight: string | null };
+type Count = { product_id: string; count_type: string; quantity: string; version: number; source?: string };
 
 const STAGES = ["opening", "active", "closing_submitted", "approved"];
 
@@ -43,8 +44,8 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
 
   const [{ data: products }, { data: counts }, { data: movements }, { data: cashEvents }, { data: imports }, { data: approvals }, { data: settlementsRows }] =
     await Promise.all([
-      supabase.from("products").select("id, sku, name, base_unit, tracking_mode, pos_code").eq("active", true).order("sku"),
-      supabase.from("stock_counts").select("product_id, count_type, quantity, version").eq("shift_id", id),
+      supabase.from("products").select("id, sku, name, base_unit, tracking_mode, pos_code, container_weight").eq("active", true).order("sku"),
+      supabase.from("stock_counts").select("product_id, count_type, quantity, version, source").eq("shift_id", id),
       supabase
         .from("stock_movements")
         .select("id, product_id, movement_type, quantity, reason, reference, requires_approval, approved_by, created_by, created_at, products(name, base_unit)")
@@ -59,7 +60,9 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
     supabase.from("specials").select("id, name, deal_price, items_per_deal, special_products(product_id)").eq("active", true).order("name"),
     supabase.from("special_sales").select("id, deals, created_at, specials(name)").eq("shift_id", id).order("created_at"),
   ]);
-  const { data: biz } = await supabase.from("businesses").select("sales_source, pos_layout").eq("id", s.businessId).single();
+  const { data: biz } = await supabase.from("businesses").select("sales_source, pos_layout, count_mode").eq("id", s.businessId).single();
+  const { data: countList } = await supabase.from("shift_count_list").select("product_id, reason").eq("shift_id", id);
+  const listReasons = new Map((countList ?? []).map((x) => [x.product_id, x.reason as string]));
   const fromCounts = biz?.sales_source === "counts";
 
   const status = shift.status as string;
@@ -147,10 +150,16 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       {status === "opening" && (
         <>
           <h2>Count opening stock</h2>
-          <p className="muted">
-            Count what is physically on the shelf. Weighed items are in grams. You can save as you go and come back.
-          </p>
-          <CountSheet shiftId={id} type="opening" products={products ?? []} counts={opening} last={lastClose} />
+          {[...opening.values()].some((c) => c.source === "carried") ? (
+            <p className="notice">
+              Opening stock is carried from the last close, so there’s nothing you have to count. Check the float, count anything you want to double-check, then tap <strong>Finish opening</strong>.
+            </p>
+          ) : (
+            <p className="muted">
+              Count what is physically on the shelf. Weighed items are in grams. You can save as you go and come back.
+            </p>
+          )}
+          <CountSheet shiftId={id} type="opening" products={products ?? []} counts={opening} last={[...opening.values()].some((c) => c.source === "carried") ? undefined : lastClose} />
           <ActionForm action={activateShift} hidden={{ shift_id: id }}>
             <div className="actionbar">
               <div>
@@ -338,10 +347,23 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
           )}
 
           <h2>{status === "correction_requested" ? "Recount" : "Close the shift"}</h2>
-          <p className="muted">
-            Count closing stock without looking at the system figures. The differences are worked out after you submit.
-          </p>
-          <CountSheet shiftId={id} type="closing" products={products ?? []} counts={closing} needsReason={status === "correction_requested"} />
+          {listReasons.size > 0 && listReasons.size < (products?.length ?? 0) ? (
+            <>
+              <p className="notice">
+                <strong>Count these {listReasons.size} products tonight.</strong> OnPoint picked them: a few at random, ones that didn’t tally recently, and ones due for a check. The other {(products?.length ?? 0) - listReasons.size} carry forward from the till sales.
+              </p>
+              {manager && (
+                <ActionForm action={requestFullCount} hidden={{ shift_id: id }}>
+                  <Submit className="quiet">Count everything this shift instead</Submit>
+                </ActionForm>
+              )}
+            </>
+          ) : (
+            <p className="muted">
+              Count closing stock without looking at the system figures. The differences are worked out after you submit.
+            </p>
+          )}
+          <CountSheet shiftId={id} type="closing" products={listReasons.size ? (products ?? []).filter((p) => listReasons.has(p.id)) : products ?? []} counts={closing} needsReason={status === "correction_requested"} reasons={listReasons} />
 
           <ActionForm action={submitClosing} hidden={{ shift_id: id }} className="sheet">
             <label htmlFor="counted_cash">Cash counted in the till (R)</label>
@@ -458,6 +480,10 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   );
 }
 
+// Jar weighing: staff enter the scale reading of the whole jar
+const tare = (p: Product) => (p.base_unit === "g" && p.container_weight !== null && Number(p.container_weight) > 0 ? Number(p.container_weight) : 0);
+const withTare = (p: Product, q: string) => (tare(p) ? String(Math.round((Number(q) + tare(p)) * 1000) / 1000) : String(q));
+
 function CountSheet({
   shiftId,
   type,
@@ -465,6 +491,7 @@ function CountSheet({
   counts,
   needsReason,
   last,
+  reasons,
 }: {
   shiftId: string;
   type: "opening" | "closing";
@@ -472,6 +499,7 @@ function CountSheet({
   counts: Map<string, Count>;
   needsReason?: boolean;
   last?: Map<string, string>;
+  reasons?: Map<string, string>;
 }) {
   const anySubmitted = counts.size > 0;
   return (
@@ -489,7 +517,7 @@ function CountSheet({
               <label htmlFor={`q-${type}-${p.id}`} style={{ margin: 0 }}>
                 <span className="name">{p.name}</span>
                 <span className="hint" style={{ display: "block" }}>
-                  {p.sku}, {p.base_unit === "g" ? "grams" : "units"}{c && c.version > 1 ? `, recount ${c.version}` : ""}
+                  {tare(p) ? `Weigh the jar: the empty jar (${Number(p.container_weight)}g) is taken off` : `${p.sku}, ${p.base_unit === "g" ? "grams" : "units"}`}{c && c.version > 1 && c.source !== "carried" ? `, recount ${c.version}` : ""}{reasons?.get(p.id) ? ` · ${reasons.get(p.id)}` : ""}
                 </span>
               </label>
               <input
@@ -499,9 +527,9 @@ function CountSheet({
                 inputMode="decimal"
                 step="any"
                 min="0"
-                defaultValue={c ? String(c.quantity) : ""}
-                data-last={last?.get(p.id)}
-                aria-label={`${p.name} count in ${p.base_unit === "g" ? "grams" : "units"}`}
+                defaultValue={c ? withTare(p, c.quantity) : ""}
+                data-last={last?.get(p.id) !== undefined ? withTare(p, last.get(p.id)!) : undefined}
+                aria-label={tare(p) ? `${p.name}: jar on the scale, in grams` : `${p.name} count in ${p.base_unit === "g" ? "grams" : "units"}`}
               />
             </li>
           );

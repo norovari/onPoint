@@ -42,10 +42,10 @@ export function ReconView({ recon }: { recon: Recon }) {
           <li key={s.product_id} className="line" data-status={s.status}>
             <span className="name">{s.name}</span>
             <span className="diff" data-status={s.status}>
-              {s.status === "missing_evidence" ? "Not counted" : signedQty(s.variance, s.base_unit)}
+              {s.status === "missing_evidence" || s.status === "not_counted" ? "Not counted" : signedQty(s.variance, s.base_unit)}
             </span>
             <span className="meta">
-              Expected {formatQty(s.expected_closing, s.base_unit)}, counted {formatQty(s.counted_closing, s.base_unit)}
+              {s.status === "not_counted" ? `Not on this shift’s count list; carried forward at ${formatQty(s.expected_closing, s.base_unit)}` : `Expected ${formatQty(s.expected_closing, s.base_unit)}, counted ${formatQty(s.counted_closing, s.base_unit)}`}
               <details>
                 <summary className="small">Show working</summary>
                 <table className="working">
