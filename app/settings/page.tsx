@@ -3,6 +3,8 @@ import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { addMember, addProduct, addSpecial, deactivateMember, setLowStock, setSalesSource, toggleSpecial, updateTolerances } from "@/app/actions";
 import { formatZar } from "@/lib/calculations";
+import { ProductImport } from "@/components/ProductImport";
+import { CATEGORIES } from "@/lib/products/import";
 
 export const metadata = { title: "Settings" };
 
@@ -13,7 +15,7 @@ export default async function Settings() {
 
   const { data: specials } = await supabase.from("specials").select("id, name, code, deal_price, items_per_deal, active, special_products(product_id)").order("name");
   const [{ data: products }, { data: team }, { data: biz }, { data: sub }] = await Promise.all([
-    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, active, low_stock_level, product_prices(unit_price, valid_from, valid_to)").order("sku"),
+    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, category, active, low_stock_level, product_prices(unit_price, valid_from, valid_to)").order("category").order("name"),
     isManager(s.role)
       ? supabase.from("memberships").select("user_id, role, active, profiles(full_name)").eq("business_id", s.businessId)
       : Promise.resolve({ data: [] as never[] }),
@@ -29,19 +31,19 @@ export default async function Settings() {
       <h1>Settings</h1>
 
       <h2>Products</h2>
-      <p className="muted small">The POS code must match the product code in your POS export so sales can be matched to stock.</p>
+      <p className="muted small">Your menu. Till items are linked to these products the first time you upload a till file.</p>
       <div className="scroll">
         <table className="data">
-          <thead><tr><th>Product</th><th>POS code</th><th>Counted in</th><th className="num">Price</th><th>Warn when below</th></tr></thead>
+          <thead><tr><th>Product</th><th>Category</th><th>Counted in</th><th className="num">Price</th><th>Warn when below</th></tr></thead>
           <tbody>
             {(products ?? []).map((p) => {
               const price = currentPrice(p as never);
               return (
                 <tr key={p.id}>
                   <td>{p.name}<br /><span className="muted small">{p.sku}</span></td>
-                  <td>{p.pos_code || <span className="muted">not set</span>}</td>
+                  <td>{p.category || <span className="muted">none</span>}</td>
                   <td>{p.base_unit === "g" ? "grams" : "units"}</td>
-                  <td className="num">{price === undefined ? "—" : p.base_unit === "g" ? `${formatZar(Number(price) * 1000)}/kg` : formatZar(price)}</td>
+                  <td className="num">{price === undefined ? "—" : p.base_unit === "g" ? `${formatZar(price)}/g` : formatZar(price)}</td>
                   <td>
                     {owner ? (
                       <ActionForm action={setLowStock} hidden={{ product_id: p.id }}>
@@ -59,6 +61,8 @@ export default async function Settings() {
         </table>
       </div>
 
+      {owner && <ProductImport existing={(products ?? []).map((p) => ({ name: p.name, sku: p.sku }))} />}
+
       {owner && (
         <ActionForm action={addProduct} className="sheet">
           <h3>Add a product</h3>
@@ -68,12 +72,15 @@ export default async function Settings() {
           </div>
           <label htmlFor="p-name">Name</label>
           <input id="p-name" name="name" required />
+          <label htmlFor="p-cat">Category</label>
+          <input id="p-cat" name="category" list="p-cats" placeholder="Flower, Pre-rolls, Edibles…" />
+          <datalist id="p-cats">{CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
           <div className="row">
             <div>
               <label htmlFor="p-mode">Sold</label>
-              <select id="p-mode" name="tracking_mode"><option value="unit">By the unit</option><option value="weight">By weight</option></select>
+              <select id="p-mode" name="tracking_mode"><option value="unit">By the unit</option><option value="weight">By the gram</option></select>
             </div>
-            <div><label htmlFor="p-price">Price (R per unit or per kg)</label><input id="p-price" name="price" inputMode="decimal" required /></div>
+            <div><label htmlFor="p-price">Price (R per unit, or per gram)</label><input id="p-price" name="price" inputMode="decimal" required /></div>
           </div>
           <div style={{ marginTop: 12 }}><Submit>Add product</Submit></div>
         </ActionForm>

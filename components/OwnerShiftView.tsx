@@ -8,6 +8,7 @@ import Decimal from "decimal.js";
 import { formatQty, formatZar } from "@/lib/calculations";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { updateException } from "@/app/actions";
+import { ReasonFields } from "@/components/ReasonFields";
 import { EXCEPTION_TYPE } from "@/lib/labels";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -95,8 +96,7 @@ export function OwnerShiftView({
                 {e.explanation && <p style={{ whiteSpace: "pre-wrap", margin: "0 0 8px" }}>{e.explanation}</p>}
                 {e.status === "resolved" ? <span className="status" data-status="matched">Resolved</span> : (
                   <ActionForm action={updateException} hidden={{ exception_id: e.id }}>
-                    <label htmlFor={`ex-${e.id}`}>What happened?</label>
-                    <textarea id={`ex-${e.id}`} name="explanation" rows={2} required />
+                    <ReasonFields id={e.id} label={"What happened?"} />
                     <div className="row" style={{ marginTop: 8, flexWrap: "wrap" }}>
                       <Submit className="quiet" name="status" value="explained">Save explanation</Submit>
                       {canResolve && <Submit name="status" value="resolved">Fixed, close alert</Submit>}

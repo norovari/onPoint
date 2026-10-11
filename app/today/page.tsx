@@ -28,6 +28,29 @@ export default async function Today() {
   const plan = planData as { plan: string; status: string; current_period_end: string | null; launch_discount_open: boolean; launch_discount_until: string | null } | null;
   const left = timeLeft(plan?.launch_discount_until);
 
+  // First-week setup checklist (owner only, until every step is done)
+  let steps: { done: boolean; label: string; href?: string; hint: string }[] = [];
+  if (s.role === "owner") {
+    const [{ data: prods }, { count: team }, { count: shifts }, { count: closed }, { data: biz }, { count: imports }] = await Promise.all([
+      supabase.from("products").select("id, product_prices(valid_to)").eq("active", true),
+      supabase.from("memberships").select("user_id", { count: "exact", head: true }).eq("business_id", s.businessId).eq("active", true),
+      supabase.from("shifts").select("id", { count: "exact", head: true }),
+      supabase.from("shifts").select("id", { count: "exact", head: true }).in("status", ["closing_submitted", "correction_requested", "approved"]),
+      supabase.from("businesses").select("sales_source").eq("id", s.businessId).single(),
+      supabase.from("pos_imports").select("id", { count: "exact", head: true }).neq("source", "manual-special"),
+    ]);
+    const unpriced = (prods ?? []).filter((p) => !(p.product_prices as { valid_to: string | null }[]).some((x) => !x.valid_to)).length;
+    steps = [
+      { done: (prods ?? []).length > 0, label: "Add your products", href: "/settings", hint: "Upload your product list or add them one by one." },
+      { done: (prods ?? []).length > 0 && unpriced === 0, label: "Check your prices", href: "/settings", hint: unpriced ? `${unpriced} product${unpriced === 1 ? " has" : "s have"} no price yet.` : "Prices are used to value stock and sales." },
+      { done: (team ?? 0) > 1, label: "Invite your staff", href: "/settings", hint: "Each person gets their own login, so every count is signed." },
+      { done: biz?.sales_source === "counts" || (imports ?? 0) > 0, label: "Choose how sales come in", href: "/settings", hint: "Upload your till file each shift, or let OnPoint work it out from the counts." },
+      { done: (shifts ?? 0) > 0, label: "Open your first shift", hint: "Count the float and the opening stock below." },
+      { done: (closed ?? 0) > 0, label: "Close your first shift", hint: "Count again at the end, then see what tallies." },
+    ];
+  }
+  const stepsLeft = steps.filter((x) => !x.done).length;
+
   const busy = new Set((inProgress ?? []).map((x) => x.location_id));
   const free = (locations ?? []).filter((l) => !busy.has(l.id));
   const waiting = (inProgress ?? []).filter((x) => x.status === "closing_submitted");
@@ -49,7 +72,24 @@ export default async function Today() {
         <p className="notice error">Your last card payment failed. <Link href="/billing">Update it</Link> within 7 days to keep your plan.</p>
       )}
 
-      {products === 0 && (
+      {stepsLeft > 0 && (
+        <div className="sheet">
+          <h2 style={{ marginTop: 0 }}>Get set up</h2>
+          <p className="small muted" style={{ marginTop: -6 }}>{steps.length - stepsLeft} of {steps.length} done</p>
+          <ol className="lines" style={{ listStyle: "none", paddingLeft: 0 }}>
+            {steps.map((x) => (
+              <li key={x.label} className="line" data-status={x.done ? "matched" : undefined}>
+                <span className="name" style={{ textDecoration: x.done ? "line-through" : undefined }}>
+                  {x.done ? "✓ " : "○ "}{x.href && !x.done ? <Link href={x.href}>{x.label}</Link> : x.label}
+                </span>
+                {!x.done && <span className="meta">{x.hint}</span>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {products === 0 && stepsLeft === 0 && (
         <p className="notice">
           Add your products before the first shift.{" "}
           {s.role === "owner" ? <Link href="/settings">Add products</Link> : "Ask the owner to add them."}

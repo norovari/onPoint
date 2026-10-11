@@ -4,6 +4,7 @@ import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { PosImport } from "@/components/PosImport";
+import { FillLast } from "@/components/FillLast";
 import { OwnerShiftView, type ShiftException } from "@/components/OwnerShiftView";
 import {
   activateShift,
@@ -74,6 +75,16 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
     return m;
   };
   const opening = latest("opening");
+  // The previous shift's closing counts, to start the opening count from
+  const lastClose = new Map<string, string>();
+  if (shift.status === "opening" && shift.previous_shift_id) {
+    const { data: prev } = await supabase.from("stock_counts").select("product_id, quantity, version")
+      .eq("shift_id", shift.previous_shift_id).eq("count_type", "closing");
+    const v = new Map<string, number>();
+    for (const c of prev ?? []) {
+      if ((v.get(c.product_id) ?? 0) < c.version) { v.set(c.product_id, c.version); lastClose.set(c.product_id, String(c.quantity)); }
+    }
+  }
   const closing = latest("closing");
   const workedIt = [shift.opened_by, shift.closed_by].includes(s.userId);
   const canEnter = ["opening", "active", "correction_requested"].includes(status);
@@ -139,7 +150,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
           <p className="muted">
             Count what is physically on the shelf. Weighed items are in grams. You can save as you go and come back.
           </p>
-          <CountSheet shiftId={id} type="opening" products={products ?? []} counts={opening} />
+          <CountSheet shiftId={id} type="opening" products={products ?? []} counts={opening} last={lastClose} />
           <ActionForm action={activateShift} hidden={{ shift_id: id }}>
             <div className="actionbar">
               <div>
@@ -453,16 +464,23 @@ function CountSheet({
   products,
   counts,
   needsReason,
+  last,
 }: {
   shiftId: string;
   type: "opening" | "closing";
   products: Product[];
   counts: Map<string, Count>;
   needsReason?: boolean;
+  last?: Map<string, string>;
 }) {
   const anySubmitted = counts.size > 0;
   return (
     <ActionForm action={saveCounts} hidden={{ shift_id: shiftId, count_type: type }}>
+      {last && last.size > 0 && (
+        <p className="small" style={{ margin: "0 0 8px" }}>
+          <FillLast count={last.size} /> <span className="muted">Then check the shelf and change only what’s different.</span>
+        </p>
+      )}
       <ul className="lines">
         {products.map((p) => {
           const c = counts.get(p.id);
@@ -482,6 +500,7 @@ function CountSheet({
                 step="any"
                 min="0"
                 defaultValue={c ? String(c.quantity) : ""}
+                data-last={last?.get(p.id)}
                 aria-label={`${p.name} count in ${p.base_unit === "g" ? "grams" : "units"}`}
               />
             </li>

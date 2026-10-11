@@ -417,10 +417,15 @@ export async function approveMovement(_: ActionState, f: FormData): Promise<Acti
 
 export async function updateException(_: ActionState, f: FormData): Promise<ActionState> {
   const { supabase } = await requireSession();
+  const reason = str(f, "reason");
+  const note = str(f, "explanation");
+  if (!reason && !note) return { error: "Choose a reason." };
+  if ((reason === "Other" || !reason) && !note) return { error: "Add a short note to explain what happened." };
+  const explanation = reason && reason !== "Other" ? (note ? `${reason}: ${note}` : reason) : note;
   const { error } = await supabase.rpc("update_exception", {
     p_exception: str(f, "exception_id"),
     p_status: str(f, "status"),
-    p_explanation: str(f, "explanation"),
+    p_explanation: explanation,
   });
   if (error) return { error: friendly(error) };
   revalidatePath("/exceptions");
@@ -437,8 +442,8 @@ export async function addProduct(_: ActionState, f: FormData): Promise<ActionSta
   if (!str(f, "sku") || !str(f, "name")) return { error: "Enter a SKU and a product name." };
   if (!DEC.test(price)) return { error: "Enter the selling price, for example 18.00." };
   const base = mode === "weight" ? "g" : "unit";
-  // Weighed products are priced per kg on screen, stored per gram.
-  const unitPrice = mode === "weight" ? new Decimal(price).dividedBy(1000).toDecimalPlaces(4).toString() : price;
+  // Weighed products are priced per gram, as dispensaries sell them.
+  const unitPrice = price;
   const { data, error } = await supabase
     .from("products")
     .insert({
@@ -447,8 +452,9 @@ export async function addProduct(_: ActionState, f: FormData): Promise<ActionSta
       name: str(f, "name"),
       tracking_mode: mode,
       base_unit: base,
-      display_unit: mode === "weight" ? "kg" : "unit",
+      display_unit: mode === "weight" ? "g" : "unit",
       pos_code: str(f, "pos_code") || null,
+      category: str(f, "category") || null,
     })
     .select("id")
     .single();
@@ -459,6 +465,37 @@ export async function addProduct(_: ActionState, f: FormData): Promise<ActionSta
   await supabase.from("product_prices").insert({ product_id: data.id, unit_price: unitPrice, valid_from: new Date().toISOString(), created_by: userId });
   revalidatePath("/settings");
   return { ok: "Product added." };
+}
+
+// A whole product list at once (from lib/products/import.ts, read in the browser)
+export async function importProducts(items: { name: string; sku: string; pos_code: string | null; category: string; weight: boolean; price: string; low: string | null }[]): Promise<ActionState> {
+  const { supabase, businessId, userId } = await requireSession();
+  if (!items.length) return { error: "No new products to add." };
+  if (items.length > 500) return { error: "Upload up to 500 products at a time." };
+  let added = 0;
+  const failed: string[] = [];
+  for (const it of items) {
+    if (!it.name?.trim() || !DEC.test(it.price)) { failed.push(it.name || "(no name)"); continue; }
+    const { data, error } = await supabase.from("products").insert({
+      business_id: businessId, sku: it.sku.slice(0, 40), name: it.name.slice(0, 120),
+      tracking_mode: it.weight ? "weight" : "unit", base_unit: it.weight ? "g" : "unit", display_unit: it.weight ? "g" : "unit",
+      pos_code: it.pos_code || null, category: it.category || null,
+      low_stock_level: it.low && DEC.test(it.low) ? it.low : null,
+    }).select("id").single();
+    if (error) {
+      if (error.message.includes("row-level")) return { error: "Only the owner can add products." };
+      if (/up to \d+ products/.test(error.message)) { failed.push(`${it.name} (plan limit)`); break; }
+      failed.push(it.name);
+      continue;
+    }
+    await supabase.from("product_prices").insert({ product_id: data.id, unit_price: it.price, valid_from: new Date().toISOString(), created_by: userId });
+    added++;
+  }
+  revalidatePath("/settings");
+  revalidatePath("/today");
+  return failed.length
+    ? { ok: `Added ${added} product${added === 1 ? "" : "s"}. Not added: ${failed.slice(0, 8).join(", ")}${failed.length > 8 ? "…" : ""}.` }
+    : { ok: `Added ${added} product${added === 1 ? "" : "s"}.` };
 }
 
 export async function addMember(_: ActionState, f: FormData): Promise<ActionState> {

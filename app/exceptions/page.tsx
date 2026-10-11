@@ -3,6 +3,7 @@ import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { updateException } from "@/app/actions";
+import { ReasonFields } from "@/components/ReasonFields";
 import { formatQty, formatZar } from "@/lib/calculations";
 import { EXCEPTION_TYPE, when } from "@/lib/labels";
 
@@ -53,8 +54,7 @@ export default async function Exceptions({ searchParams }: { searchParams: Promi
             {e.explanation && <p style={{ whiteSpace: "pre-wrap", margin: "0 0 8px" }}>{e.explanation}</p>}
             {!closed && (
               <ActionForm action={updateException} hidden={{ exception_id: e.id }}>
-                <label htmlFor={`ex-${e.id}`}>{isManager(s.role) ? "Explanation or resolution" : "Explanation"}</label>
-                <textarea id={`ex-${e.id}`} name="explanation" rows={2} required />
+                <ReasonFields id={e.id} label={isManager(s.role) ? "What happened, or how it was fixed" : "What happened?"} />
                 <div className="row" style={{ marginTop: 10 }}>
                   <Submit className="quiet" name="status" value="explained">Save explanation</Submit>
                   {isManager(s.role) && <Submit name="status" value="resolved">Resolve</Submit>}
