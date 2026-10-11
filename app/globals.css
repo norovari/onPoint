@@ -201,3 +201,12 @@ details.faq[open] summary::after { content: "−"; }
 details.faq[open] summary { border-bottom: 1px solid var(--rule); }
 details.faq .faq-a { padding: 4px 16px 12px; }
 details.faq .faq-a ul { padding-left: 20px; }
+
+/* Front page */
+.howto { padding-left: 22px; margin: 0; }
+.howto li { margin: 0 0 8px; }
+.features { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.feature { border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; background: var(--paper); }
+.feature h3 { margin: 0 0 4px; font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.feature p { margin: 0; font-size: 15px; color: var(--ink-soft); }
+.badge { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--ink); color: var(--paper); }
