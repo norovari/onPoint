@@ -263,11 +263,10 @@ begin
     'where c.shift_id = p_shift and c.product_id = p.id and c.count_type = ''closing'')
     and (not exists (select 1 from public.shift_count_list l where l.shift_id = p_shift)
          or exists (select 1 from public.shift_count_list l where l.shift_id = p_shift and l.product_id = p.id));');
-  if position('-- Shops without a till file' in src) = 0 then raise exception 'submit_closing anchor 2 missing'; end if;
-  src := replace(src, '-- Shops without a till file', '-- Spot-checks: products not on the list carry forward at their expected level
-  perform private.carry_closing(p_shift);
+  if position('  if (select sales_source from public.businesses where id = v_shift.business_id) = ''counts'' then' in src) = 0 then raise exception 'submit_closing anchor 2 missing'; end if;
+  src := replace(src, '  if (select sales_source from public.businesses where id = v_shift.business_id) = ''counts'' then', '  perform private.carry_closing(p_shift);
 
-  -- Shops without a till file');
+  if (select sales_source from public.businesses where id = v_shift.business_id) = ''counts'' then');
   if position('''review''
   from jsonb_array_elements(v_recon -> ''stock'') s
   where s ->> ''status'' in (''variance'', ''missing_evidence'');' in src) = 0 then raise exception 'submit_closing anchor 3 missing'; end if;
