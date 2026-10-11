@@ -28,3 +28,71 @@ export async function sendShiftAlert(input: { to: string[]; businessName: string
     console.error("Alert email failed", e);
   }
 }
+
+type TrialEmail = {
+  kind: "ending" | "ended"; businessName: string; reference: string; email: string;
+  discountUntil: string; shiftsClosed: number; alerts: number; missingValue: number; cashShort: number;
+};
+
+const rand = (n: number) => `R${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}`;
+
+// What OnPoint caught during the trial, in one or two sentences.
+function trialSummary(t: TrialEmail, past: boolean) {
+  if (t.shiftsClosed === 0) {
+    return past
+      ? "You didn't close a shift during the trial, so OnPoint hasn't had a chance to check anything yet."
+      : "You haven't closed a shift yet. Close one today and see what OnPoint catches.";
+  }
+  const shifts = `${t.shiftsClosed} shift${t.shiftsClosed === 1 ? "" : "s"}`;
+  if (t.alerts === 0) return `${past ? "During your trial you closed" : "So far you've closed"} ${shifts}, and everything tallied.`;
+  const money = [
+    t.missingValue > 0 ? `${rand(t.missingValue)} of missing stock` : "",
+    t.cashShort > 0 ? `${rand(t.cashShort)} short in cash` : "",
+  ].filter(Boolean).join(" and ");
+  return `${past ? "During your trial you closed" : "So far you've closed"} ${shifts}, and OnPoint flagged ${t.alerts} thing${t.alerts === 1 ? "" : "s"} that didn't tally${money ? `, including ${money}` : ""}.`;
+}
+
+// The day before the trial ends, and once it has ended. Returns true if sent.
+export async function sendTrialEmail(t: TrialEmail) {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.ALERT_FROM_EMAIL;
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  if (!key || !from || !t.email) return false;
+  const billing = site ? `${site}/billing` : "OnPoint → Billing";
+  const until = new Intl.DateTimeFormat("en-ZA", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Johannesburg" }).format(new Date(t.discountUntil));
+  const subject = t.kind === "ending" ? "Your OnPoint trial ends tomorrow" : "Your OnPoint trial has ended";
+  const lines = t.kind === "ending"
+    ? [
+        "Hi,",
+        "",
+        `Your free OnPoint trial for ${t.businessName} ends tomorrow.`,
+        "",
+        trialSummary(t, false),
+        "",
+        "Subscribe before your trial ends and your first 3 months are 20% off:",
+        billing,
+      ]
+    : [
+        "Hi,",
+        "",
+        `Your free OnPoint trial for ${t.businessName} has ended, and your shop is now on the Free plan. Shift counts still work, but email alerts, specials, staff sign-off and the monthly report are switched off.`,
+        "",
+        trialSummary(t, true),
+        "",
+        `The 20% launch discount is still open until ${until}. Subscribe here to switch everything back on:`,
+        billing,
+      ];
+  const text = [...lines, "", `Your reference: ${t.reference}`, "", "One Love 💚💛❤️", "Dee, OnPoint"].join("\n");
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [t.email], subject, text }),
+    });
+    if (!res.ok) { console.error("Trial email failed", res.status, await res.text()); return false; }
+    return true;
+  } catch (e) {
+    console.error("Trial email failed", e);
+    return false;
+  }
+}

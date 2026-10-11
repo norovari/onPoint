@@ -87,8 +87,8 @@ describe("plans and billing", () => {
     expect(amounts).toEqual([239.2, 239.2, 299]);
   });
 
-  test("after 24 hours the launch discount is gone", async () => {
-    await w.db.query(`update businesses set created_at = now() - interval '25 hours' where id = $1`, [w.bizB]);
+  test("after the trial plus 2 days the launch discount is gone", async () => {
+    await w.db.query(`update businesses set created_at = now() - interval '5 days 1 hour' where id = $1`, [w.bizB]);
     const q1 = await w.db.as(U.ownerB, (q) => val(q, `select public.billing_quote($1, 'business')`, [w.bizB]));
     expect(q1).toMatchObject({ list_amount: 699, discount_pct: 0, amount: 699 });
   });
@@ -163,6 +163,32 @@ describe("plans and billing", () => {
     await expect(w.db.as(U.ownerA, (q) => q.query(`update businesses set status = 'suspended' where id = $1`, [w.bizA]))).rejects.toThrow(/managed by billing/);
     const r = await w.db.as(U.ownerA, (q) => q.query(`update subscriptions set status = 'active', current_period_end = now() + interval '1 year' where business_id = $1`, [w.bizA]));
     expect(r.affectedRows ?? 0).toBe(0); // no update policy on subscriptions
+  });
+});
+
+describe("trial emails", () => {
+  test("the day before and after the trial ends, once each, server only", async () => {
+    const due = async () => (await asService((q) => q.query<any>(`select business_id, kind, email, alerts, reference from public.billing_trial_emails_due()`))).rows.filter((r) => r.business_id === w.bizB);
+    await w.db.query(`update subscriptions set status = 'trialing', current_period_end = now() + interval '20 hours' where business_id = $1`, [w.bizB]);
+    const [ending] = await due();
+    expect(ending).toMatchObject({ kind: "ending", email: expect.stringContaining("@") });
+    expect(ending.reference).toMatch(/^NY0R0/);
+    await asService((q) => q.query(`select public.billing_mark_trial_email($1, 'ending')`, [w.bizB]));
+    expect(await due()).toEqual([]);
+    await w.db.query(`update subscriptions set current_period_end = now() - interval '1 hour' where business_id = $1`, [w.bizB]);
+    expect((await due())[0]).toMatchObject({ kind: "ended" });
+    await asService((q) => q.query(`select public.billing_mark_trial_email($1, 'ended')`, [w.bizB]));
+    expect(await due()).toEqual([]);
+    await expect(w.db.as(U.ownerB, (q) => q.query(`select * from public.billing_trial_emails_due()`))).rejects.toThrow(/permission denied/);
+  });
+
+  test("launch offer stays open through the trial", async () => {
+    await w.db.query(`update businesses set created_at = now() - interval '4 days' where id = $1`, [w.bizB]);
+    const p = await w.db.as(U.ownerB, (q) => val(q, `select public.business_plan($1)`, [w.bizB]));
+    expect(p.launch_discount_open).toBe(true);
+    await w.db.query(`update businesses set created_at = now() - interval '6 days' where id = $1`, [w.bizB]);
+    const p2 = await w.db.as(U.ownerB, (q) => val(q, `select public.business_plan($1)`, [w.bizB]));
+    expect(p2.launch_discount_open).toBe(false);
   });
 });
 

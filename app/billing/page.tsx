@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { startCheckout } from "@/app/actions";
-import { cardConfigured, CONTACT_EMAIL, LAUNCH_DISCOUNT, PLANS, planName } from "@/lib/plans";
+import { cardConfigured, CONTACT_EMAIL, LAUNCH_DISCOUNT, PLANS, planName, timeLeft } from "@/lib/plans";
 import { formatZar } from "@/lib/calculations";
 import { when } from "@/lib/labels";
 
@@ -24,7 +24,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
   };
   const owner = role === "owner";
   const card = cardConfigured();
-  const hoursLeft = p.launch_discount_until ? Math.max(0, Math.floor((new Date(p.launch_discount_until).getTime() - Date.now()) / 3600_000)) : 0;
+  const left = timeLeft(p.launch_discount_until);
 
   return (
     <Shell businessName={s.businessName}>
@@ -50,7 +50,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
       </div>
 
       {p.launch_discount_open && owner && (
-        <p className="notice ok"><strong>Launch offer:</strong> subscribe in the next {hoursLeft} hour{hoursLeft === 1 ? "" : "s"} and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
+        <p className="notice ok"><strong>Launch offer:</strong> subscribe in the next {left} and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
       )}
 
       {!owner && <p className="muted">Only the owner can change the plan.</p>}

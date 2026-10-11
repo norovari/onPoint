@@ -386,7 +386,7 @@ export default function Demo({ businessName }: { businessName: string }) {
 
         <div className="sheet" style={{ marginTop: 28, borderWidth: 2 }}>
           <h2 style={{ marginTop: 0 }}>Use OnPoint at {businessName}</h2>
-          <p>{TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe within {LAUNCH_DISCOUNT.hours} hours of signing up and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
+          <p>{TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
           <Link href={signup} className="button" style={{ width: "100%" }}>Start free</Link>
           {tab !== "report" && <button type="button" className="quiet" style={{ width: "100%", marginTop: 10 }} onClick={() => { setView("owner"); setTab("report"); window.scrollTo(0, 0); }}>See a sample monthly report</button>}
           <p className="small muted" style={{ marginBottom: 0 }}><button type="button" className="quiet" style={{ marginTop: 10 }} onClick={() => { setProducts(freshProducts()); setCashCounted(null); setCardMachine(TILL_CARD); setFixed({}); setBanner(null); setView("owner"); setTab("alerts"); }}>Start the demo again</button></p>

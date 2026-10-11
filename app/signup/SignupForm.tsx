@@ -48,7 +48,7 @@ export default function SignupForm({ businessName }: { businessName: string }) {
       <Link href="/" className="brand" style={{ fontSize: 26, textDecoration: "none" }}>On<b>Point</b></Link>
       <h1>Start free{businessName ? ` for ${businessName}` : ""}</h1>
       <p className="lede">
-        {TRIAL_DAYS} days of everything, no card needed. Subscribe within {LAUNCH_DISCOUNT.hours} hours and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.
+        {TRIAL_DAYS} days of everything, no card needed. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.
       </p>
       <form onSubmit={onSubmit} className="sheet">
         <label htmlFor="business">Business name</label>

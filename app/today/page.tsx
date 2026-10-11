@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { openShift } from "@/app/actions";
 import { SHIFT_STATUS, when } from "@/lib/labels";
-import { LAUNCH_DISCOUNT, planName } from "@/lib/plans";
+import { LAUNCH_DISCOUNT, planName, timeLeft } from "@/lib/plans";
 
 export const metadata = { title: "Today" };
 
@@ -26,7 +26,7 @@ export default async function Today() {
 
   const { data: planData } = await supabase.rpc("business_plan", { p_business: s.businessId });
   const plan = planData as { plan: string; status: string; current_period_end: string | null; launch_discount_open: boolean; launch_discount_until: string | null } | null;
-  const hoursLeft = plan?.launch_discount_until ? Math.max(0, Math.floor((new Date(plan.launch_discount_until).getTime() - Date.now()) / 3600_000)) : 0;
+  const left = timeLeft(plan?.launch_discount_until);
 
   const busy = new Set((inProgress ?? []).map((x) => x.location_id));
   const free = (locations ?? []).filter((l) => !busy.has(l.id));
@@ -39,7 +39,7 @@ export default async function Today() {
 
       {s.role === "owner" && plan?.launch_discount_open && (
         <p className="notice ok">
-          <strong>{LAUNCH_DISCOUNT.pct}% off your first {LAUNCH_DISCOUNT.months} months</strong> if you subscribe in the next {hoursLeft} hour{hoursLeft === 1 ? "" : "s"}. <Link href="/billing">See plans</Link>
+          <strong>{LAUNCH_DISCOUNT.pct}% off your first {LAUNCH_DISCOUNT.months} months</strong> if you subscribe in the next {left}. <Link href="/billing">See plans</Link>
         </p>
       )}
       {s.role === "owner" && plan?.status === "trialing" && plan.plan !== "free" && !plan.launch_discount_open && (

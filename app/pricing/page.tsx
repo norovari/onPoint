@@ -13,7 +13,7 @@ export default function Pricing() {
       <main className="wrap">
         <h1>Pricing</h1>
         <p className="lede">
-          Every new shop gets {TRIAL_DAYS} days of the Business plan free, no card needed. After that, stay on Free or choose a plan. Subscribe within {LAUNCH_DISCOUNT.hours} hours of signing up and your first {LAUNCH_DISCOUNT.months} monthly payments are {LAUNCH_DISCOUNT.pct}% off.
+          Every new shop gets {TRIAL_DAYS} days of the Business plan free, no card needed. After that, stay on Free or choose a plan. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} monthly payments are {LAUNCH_DISCOUNT.pct}% off.
         </p>
         {PLANS.map((p) => (
           <div key={p.id} className="sheet">

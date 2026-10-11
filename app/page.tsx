@@ -58,7 +58,7 @@ export default async function Home() {
 
         <h2>Pricing</h2>
         <p className="muted">
-          {TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe within {LAUNCH_DISCOUNT.hours} hours of signing up and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.
+          {TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.
         </p>
         <div className="figures">
           {PLANS.map((p) => (

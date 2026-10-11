@@ -11,7 +11,7 @@ Run by **Norovari (Pty) Ltd t/a OnPoint**.
 - **Pricing (`/pricing`) and terms, privacy and refunds (`/terms`):** PayFast expects both pages before approving an account.
 
 **For each dispensary**
-- **Sign up with the business name:** they get a 3-day Business-plan trial with no card. The 24-hour launch offer gives 20% off the first 3 monthly payments.
+- **Sign up with the business name:** they get a 3-day Business-plan trial with no card. The launch offer (open until 2 days after the trial ends) gives 20% off the first 3 monthly payments. Owners get an email the day before the trial ends and once it has ended.
 - **Staff:** blind opening and closing counts, cash count, card machine total, deliveries and wastage, specials sold.
 - **Managers:** import the till file, or type in the till's end-of-day report, then approve or return the shift.
 - **Owner screens for every shift:**
@@ -101,7 +101,7 @@ Without a till file, managers can type in the till report instead, and staff can
 `npm test` runs 61 tests against the real migrations in an in-process Postgres. They cover:
 - tenant isolation
 - the admin gate, including a look-alike unconfirmed email
-- billing: the 24-hour discount over 3 months, duplicate callbacks, wrong amounts, references, failed renewals and grace
+- billing: the launch discount window over 3 months, trial emails, duplicate callbacks, wrong amounts, references, failed renewals and grace
 - plan limits
 - the specials tally, minus and low-stock alerts, till and card-machine totals
 - the full shift workflow

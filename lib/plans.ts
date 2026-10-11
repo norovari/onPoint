@@ -3,7 +3,17 @@
 
 export type PlanId = "free" | "starter" | "business" | "multi_site";
 
-export const LAUNCH_DISCOUNT = { pct: 20, months: 3, hours: 24 };
+// Launch offer: open from sign-up until 2 days after the 3-day trial ends
+// (the database uses the same 5-day window).
+export const LAUNCH_DISCOUNT = { pct: 20, months: 3, days: 5 };
+
+// "3 days", "1 day", "20 hours"
+export function timeLeft(until: string | null | undefined) {
+  if (!until) return "";
+  const h = Math.max(0, Math.floor((new Date(until).getTime() - Date.now()) / 3600_000));
+  if (h >= 48) return `${Math.floor(h / 24)} days`;
+  return `${h} hour${h === 1 ? "" : "s"}`;
+}
 export const TRIAL_DAYS = 3;
 
 export const PLANS: { id: PlanId; name: string; price: number; blurb: string; features: string[] }[] = [
