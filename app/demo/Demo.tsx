@@ -16,25 +16,25 @@ const START: [string, string, Unit, number, number, number, number, number][] = 
   ["Flower", "Greenhouse flower", "g", 50, 50, 15, 34, 20],
   ["Flower", "Indoor A flower", "g", 80, 40, 10, 30, 15],
   ["Flower", "Indoor AAA flower", "g", 120, 30, 10, 17, 15],
-  ["Pre-rolls", "Indoor pre-roll: Blue Dream", "each", 110, 4, 2, 6, 5],
-  ["Pre-rolls", "Indoor pre-roll: OG Kush", "each", 110, 10, 1, 4, 5],
-  ["Pre-rolls", "Indoor pre-roll: Lemon Haze", "each", 110, 8, 1, 4, 5],
-  ["Pre-rolls", "Greenhouse pre-roll: Gelato", "each", 60, 20, 2, 7, 5],
-  ["Pre-rolls", "Greenhouse pre-roll: Cheese", "each", 60, 15, 1, 6, 5],
+  ["Pre-rolls", "Indoor pre-roll: Blue Dream", "each", 100, 4, 2, 6, 5],
+  ["Pre-rolls", "Indoor pre-roll: OG Kush", "each", 100, 10, 1, 4, 5],
+  ["Pre-rolls", "Indoor pre-roll: Lemon Haze", "each", 100, 8, 1, 4, 5],
+  ["Pre-rolls", "Greenhouse pre-roll: Gelato", "each", 50, 20, 2, 7, 5],
+  ["Pre-rolls", "Greenhouse pre-roll: Cheese", "each", 50, 15, 1, 6, 5],
   ["Edibles", "Gummies 10 pack", "each", 130, 15, 5, 10, 5],
   ["Edibles", "Brownie", "each", 120, 10, 3, 6, 4],
   ["Vapes & extracts", "1ml vape cartridge", "each", 300, 8, 2, 6, 3],
   ["Vapes & extracts", "Rosin 1g", "each", 600, 5, 1, 4, 5],
 ];
 const SPECIALS: Special[] = [
-  { id: "s1", name: "Indoor pre-rolls, 2 for R200", dealPrice: 200, per: 2, normalEach: 110, deals: 7,
+  { id: "s1", name: "Indoor pre-rolls, 2 for R180", dealPrice: 180, per: 2, normalEach: 100, deals: 7,
     mix: { "Indoor pre-roll: Blue Dream": 6, "Indoor pre-roll: OG Kush": 5, "Indoor pre-roll: Lemon Haze": 3 } },
-  { id: "s2", name: "Greenhouse pre-rolls, 2 for R100", dealPrice: 100, per: 2, normalEach: 60, deals: 9,
+  { id: "s2", name: "Greenhouse pre-rolls, 2 for R90", dealPrice: 90, per: 2, normalEach: 50, deals: 9,
     mix: { "Greenhouse pre-roll: Gelato": 11, "Greenhouse pre-roll: Cheese": 8 } },
 ];
 const TILL_CARD = 3200;
 const FLOAT = 500;
-const USUAL_DAY = 9100;
+const USUAL_DAY = 8800;
 
 const freshProducts = (): Product[] =>
   START.map(([group, name, unit, price, last, normal, counted, low], i) => ({

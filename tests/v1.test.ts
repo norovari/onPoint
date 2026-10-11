@@ -128,12 +128,12 @@ describe("plans and billing", () => {
     expect(n).toBe(20);
     const rows = (await w.db.query<any>(
       `select p.sku, p.tracking_mode, p.base_unit, pp.unit_price::float as unit_price from products p join product_prices pp on pp.product_id = p.id where p.business_id = $1 and p.sku like 'FL-%' order by p.sku`, [shop])).rows;
-    expect(rows.find((r) => r.sku === "FL-OUT")).toMatchObject({ tracking_mode: "weight", base_unit: "g", unit_price: 30 });
+    expect(rows.find((r) => r.sku === "FL-OUT")).toMatchObject({ tracking_mode: "weight", base_unit: "g", unit_price: 25 });
     const specials = (await w.db.query<any>(
       `select s.name, s.deal_price::float as deal_price, count(sp.product_id)::int as items from specials s join special_products sp on sp.special_id = s.id where s.business_id = $1 group by s.id order by s.deal_price`, [shop])).rows;
     expect(specials).toEqual([
-      { name: "Greenhouse pre-rolls, 2 for R100", deal_price: 100, items: 2 },
-      { name: "Indoor pre-rolls, 2 for R200", deal_price: 200, items: 2 },
+      { name: "Greenhouse pre-rolls, 2 for R90", deal_price: 90, items: 2 },
+      { name: "Indoor pre-rolls, 2 for R180", deal_price: 180, items: 2 },
     ]);
     // Loading twice adds nothing
     expect(await w.db.as(U.staffA2, (q) => val(q, `select public.load_demo_catalogue($1)`, [shop]))).toBe(0);
