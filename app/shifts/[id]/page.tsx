@@ -16,6 +16,8 @@ import {
   recordSettlement,
   reviewShift,
   requestFullCount,
+  joinCount,
+  setCounters,
   saveCounts,
   submitClosing,
 } from "@/app/actions";
@@ -61,8 +63,15 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
     supabase.from("special_sales").select("id, deals, created_at, specials(name)").eq("shift_id", id).order("created_at"),
   ]);
   const { data: biz } = await supabase.from("businesses").select("sales_source, pos_layout, count_mode").eq("id", s.businessId).single();
-  const { data: countList } = await supabase.from("shift_count_list").select("product_id, reason").eq("shift_id", id);
+  const { data: countList } = await supabase.from("shift_count_list").select("product_id, reason, assigned_to").eq("shift_id", id);
   const listReasons = new Map((countList ?? []).map((x) => [x.product_id, x.reason as string]));
+  // Shared counts: who is counting tonight and which products each person has
+  const { data: progressRaw } = await supabase.rpc("count_progress", { p_shift: id });
+  const progress = (progressRaw ?? []) as { user_id: string; name: string; assigned: number; counted: number }[];
+  const counterName = new Map(progress.map((p) => [p.user_id, p.user_id === s.userId ? "you" : p.name]));
+  const assignedTo = new Map((countList ?? []).filter((x) => x.assigned_to).map((x) => [x.product_id, x.assigned_to as string]));
+  const shared = assignedTo.size > 0;
+  const imCounting = progress.some((p) => p.user_id === s.userId);
   const fromCounts = biz?.sales_source === "counts";
 
   const status = shift.status as string;
@@ -90,6 +99,22 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   }
   const closing = latest("closing");
   const workedIt = [shift.opened_by, shift.closed_by].includes(s.userId);
+  const canShare = manager || shift.opened_by === s.userId;
+  const { data: teamRows } = canShare && status === "active"
+    ? await supabase.from("memberships").select("user_id, profiles(full_name)").eq("business_id", s.businessId).eq("active", true)
+    : { data: [] as { user_id: string; profiles: unknown }[] };
+  const team = (teamRows ?? []).map((m) => ({ id: m.user_id, name: (m.profiles as { full_name: string } | null)?.full_name || "Team member" }));
+  // What this person sees on the closing sheet
+  const closingProducts = (products ?? []).filter((p) => {
+    if (listReasons.size && !listReasons.has(p.id)) return false;
+    if (shared && !manager && status === "active") return assignedTo.get(p.id) === s.userId;
+    return true;
+  });
+  const closingTags = new Map([...listReasons].map(([pid, r]) => {
+    const who = assignedTo.get(pid);
+    const tag = [r !== "Full count" ? r : "", manager && who ? `for ${counterName.get(who) ?? "someone"}` : ""].filter(Boolean).join(" · ");
+    return [pid, tag];
+  }));
   const canEnter = ["opening", "active", "correction_requested"].includes(status);
   const showRecon = ["closing_submitted", "correction_requested", "approved"].includes(status);
 
@@ -363,7 +388,47 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
               Count closing stock without looking at the system figures. The differences are worked out after you submit.
             </p>
           )}
-          <CountSheet shiftId={id} type="closing" products={listReasons.size ? (products ?? []).filter((p) => listReasons.has(p.id)) : products ?? []} counts={closing} needsReason={status === "correction_requested"} reasons={listReasons} />
+          {status === "active" && (
+            <div className="sheet">
+              <h3 style={{ marginTop: 0 }}>Counting with others?</h3>
+              {progress.length === 0 ? (
+                <p className="small" style={{ marginTop: 0 }}>If more than one person is on site, share tonight’s count. OnPoint splits the list at random, so everyone counts something different each time.</p>
+              ) : (
+                <ul className="small" style={{ margin: "0 0 10px", paddingLeft: 18 }}>
+                  {progress.map((p) => (
+                    <li key={p.user_id}>
+                      <strong>{p.user_id === s.userId ? "You" : p.name}</strong>: {p.counted} of {p.assigned} counted
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!imCounting && (
+                <ActionForm action={joinCount} hidden={{ shift_id: id }}>
+                  <Submit className="quiet">I’m counting tonight</Submit>
+                </ActionForm>
+              )}
+              {canShare && team.length > 1 && (
+                <details style={{ marginTop: 8 }}>
+                  <summary className="small">{progress.length ? "Change who’s counting" : "Choose who’s counting"}</summary>
+                  <ActionForm action={setCounters} hidden={{ shift_id: id }}>
+                    {team.map((m) => (
+                      <label key={m.id} className="check" style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 400, margin: "4px 0" }}>
+                        <input type="checkbox" name="user_ids" value={m.id} defaultChecked={progress.some((p) => p.user_id === m.id)} style={{ width: "auto" }} />
+                        {m.id === s.userId ? `${m.name} (you)` : m.name}
+                      </label>
+                    ))}
+                    <div style={{ marginTop: 8 }}><Submit>Share the count</Submit></div>
+                  </ActionForm>
+                </details>
+              )}
+              {shared && !manager && (
+                <p className="small muted" style={{ marginBottom: 0 }}>
+                  {imCounting ? `Below are your ${closingProducts.length} products. Anything you’ve counted stays yours if someone else joins.` : "Tap “I’m counting tonight” to get your share of the list."}
+                </p>
+              )}
+            </div>
+          )}
+          <CountSheet shiftId={id} type="closing" products={closingProducts} counts={closing} needsReason={status === "correction_requested"} reasons={closingTags} />
 
           <ActionForm action={submitClosing} hidden={{ shift_id: id }} className="sheet">
             <label htmlFor="counted_cash">Cash counted in the till (R)</label>

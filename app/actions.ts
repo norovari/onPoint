@@ -645,3 +645,22 @@ export async function setProductOptions(_: ActionState, f: FormData): Promise<Ac
   revalidatePath("/settings");
   return { ok: "Saved." };
 }
+
+export async function joinCount(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const shiftId = str(f, "shift_id");
+  const { error } = await supabase.rpc("join_count", { p_shift: shiftId });
+  if (error) return { error: friendly(error) };
+  revalidatePath(`/shifts/${shiftId}`);
+  return { ok: "You’re in. Your share of the list is below." };
+}
+
+export async function setCounters(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase } = await requireSession();
+  const shiftId = str(f, "shift_id");
+  const users = f.getAll("user_ids").map(String).filter(Boolean);
+  const { error } = await supabase.rpc("set_counters", { p_shift: shiftId, p_users: users });
+  if (error) return { error: friendly(error) };
+  revalidatePath(`/shifts/${shiftId}`);
+  return { ok: users.length ? `Shared between ${users.length} ${users.length === 1 ? "person" : "people"}.` : "Sharing switched off." };
+}

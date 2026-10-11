@@ -9,10 +9,11 @@
 alter table public.shift_count_list add column if not exists assigned_to uuid references public.profiles(id);
 
 create table if not exists public.shift_counters (
-  shift_id uuid not null references public.shifts(id) on delete restrict,
+  shift_id uuid not null references public.shifts(id),
   user_id  uuid not null references public.profiles(id),
   added_by uuid not null references public.profiles(id),
   added_at timestamptz not null default now(),
+  active   boolean not null default true,
   primary key (shift_id, user_id)
 );
 alter table public.shift_counters enable row level security;
@@ -27,7 +28,7 @@ as $$
 declare v_shift public.shifts%rowtype; v_people uuid[]; v_n int;
 begin
   select * into v_shift from public.shifts where id = p_shift;
-  select array_agg(user_id order by random()) into v_people from public.shift_counters where shift_id = p_shift;
+  select array_agg(user_id order by random()) into v_people from public.shift_counters where shift_id = p_shift and active;
   v_n := coalesce(array_length(v_people, 1), 0);
 
   -- Full-count shops: the whole range is the list
@@ -62,7 +63,7 @@ begin
   if not found or not private.can_access_shift(p_shift) then raise exception 'Shift not found' using errcode = 'P0002'; end if;
   if v_shift.status <> 'active' then raise exception 'You can join the count while the shift is open' using errcode = 'P0001'; end if;
   insert into public.shift_counters (shift_id, user_id, added_by) values (p_shift, auth.uid(), auth.uid())
-  on conflict do nothing;
+  on conflict (shift_id, user_id) do update set active = true;
   perform private.share_count_list(p_shift);
 end $$;
 
@@ -84,10 +85,10 @@ begin
                                where m.business_id = v_shift.business_id and m.user_id = u and m.active and pr.active)) then
     raise exception 'Everyone counting must be on your team' using errcode = '22023';
   end if;
-  delete from public.shift_counters where shift_id = p_shift and not (user_id = any(coalesce(p_users, '{}')));
+  update public.shift_counters set active = (user_id = any(coalesce(p_users, '{}'))) where shift_id = p_shift;
   insert into public.shift_counters (shift_id, user_id, added_by)
   select p_shift, u, auth.uid() from unnest(coalesce(p_users, '{}')) u
-  on conflict do nothing;
+  on conflict (shift_id, user_id) do update set active = true;
   perform private.share_count_list(p_shift);
 end $$;
 
@@ -107,7 +108,7 @@ begin
                               and c.count_type = 'closing' and c.source = 'counted'))
     ) order by sc.added_at)
     from public.shift_counters sc join public.profiles pr on pr.id = sc.user_id
-    where sc.shift_id = p_shift), '[]'::jsonb);
+    where sc.shift_id = p_shift and sc.active), '[]'::jsonb);
 end $$;
 
 -- A closing count on a shared list must come from the person it was given to

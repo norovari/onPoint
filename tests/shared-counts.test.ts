@@ -56,3 +56,12 @@ describe("shared counts", () => {
     await expect(db.as(BEN, (q) => q.query(`select public.set_counters($1, $2)`, [shift, [BEN]]))).rejects.toThrow(/running the shift or a manager/);
   });
 });
+
+describe("changing who counts", () => {
+  test("taking someone off the count hands their open items to the others", async () => {
+    await db.as(ANNA, (q) => q.query(`select public.set_counters($1, $2)`, [shift, [ANNA, BEN]]));
+    const progress = await db.as(ANNA, (q) => val(q, `select public.count_progress($1)`, [shift]));
+    expect(progress.map((p: any) => p.name).sort()).toEqual(["Anna", "Ben"]);
+    expect(progress.reduce((s: number, p: any) => s + p.assigned, 0)).toBe(20);
+  });
+});

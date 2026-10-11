@@ -62,15 +62,14 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
         q: "We split the stock take randomly between staff so nobody can hustle. Can OnPoint do that?",
         a: (
           <>
-            <p>Partly, today:</p>
+            <p>Yes. Each person on shift taps “I’m counting tonight” (or the manager picks who’s counting), and OnPoint shares the list out at random. Everyone counts something different every time, and nobody can count someone else’s items.</p>
             <ul>
               <li>On spot-checks, nobody knows in advance which products will be counted.</li>
               <li>Staff count without seeing what the system expects.</li>
-              <li>Every count is saved under the name of the person who entered it.</li>
+              <li>Every count is saved under the name of the person who entered it, and the manager sees each person’s progress.</li>
               <li>A recount adds a new version with a reason; the first count is never overwritten.</li>
               <li>A manager signs off each shift.</li>
             </ul>
-            <p>Sharing the list out at random between everyone on shift, so each person counts something different every time, is the next thing we’re building.</p>
           </>
         ),
       },
