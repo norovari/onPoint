@@ -95,27 +95,27 @@ interface Alert { id: string; level: "variance" | "pending"; title: string; amou
 function alertsFor(c: Calc, closedBy: string): Alert[] {
   const list: Alert[] = [];
   const missing = c.rows.filter((r) => r.diff !== null && r.diff < 0);
-  if (missing.length) list.push({ id: "stock", level: "variance", title: "Stock and money don’t tally", amount: rand(c.missingTotal),
-    body: `Stock is missing that was never rung up: ${missing.map((r) => `${r.name} ${qty(-r.diff!, r.unit)}`).join(", ")}. At your selling prices that is worth ${rand(c.missingTotal)}.`,
-    actions: [["recount", "Ask staff to recount"], ["explain", "Write what happened"]] });
-  c.specials.filter((s) => s.extra !== 0).forEach((s) => list.push({ id: `sp-${s.id}`, level: "variance", title: "A special doesn’t tally", amount: `${s.extra > 0 ? "+" : "−"}${Math.abs(s.extra)}`,
+  if (missing.length) list.push({ id: "stock", level: "variance", title: "Stock difference found", amount: rand(c.missingTotal),
+    body: `The stock counted is less than expected: ${missing.map((r) => `${r.name} ${qty(-r.diff!, r.unit)}`).join(", ")}. At your selling prices that is worth ${rand(c.missingTotal)}. Check the figures and record what happened.`,
+    actions: [["recount", "Ask for a recount"], ["explain", "Add an explanation"]] });
+  c.specials.filter((s) => s.extra !== 0).forEach((s) => list.push({ id: `sp-${s.id}`, level: "variance", title: "Special offer doesn’t tally", amount: `${s.extra > 0 ? "+" : "−"}${Math.abs(s.extra)}`,
     body: `${s.name}: ${s.deals} deals should mean ${s.shouldUnits} pre-rolls went out, but ${s.units} did. ${s.extra > 0 ? `${s.extra} extra, worth ${rand(s.extra * s.normalEach)} at the normal price.` : ""}`,
-    actions: [["specials", "See the special"], ["explain", "Write what happened"]] }));
-  if (c.cashDiff !== 0) list.push({ id: "cash", level: "variance", title: c.cashDiff < 0 ? "Cash short in the till" : "Extra cash in the till", amount: rand(c.cashDiff, true),
-    body: `The till says there should be ${rand(c.cashShould)} in cash (${rand(FLOAT)} float plus ${rand(c.tillCash)} cash sales). ${closedBy} counted ${rand(c.cashShould + c.cashDiff)}.`,
-    actions: [["recount", "Ask for a recount"], ["explain", "Write what happened"]] });
-  if (c.cardDiff !== 0) list.push({ id: "card", level: "variance", title: "Card machine doesn’t match the till", amount: rand(c.cardDiff, true),
-    body: `The till recorded ${rand(TILL_CARD)} in card sales. The card machine shows ${rand(TILL_CARD + c.cardDiff)}.`, actions: [["explain", "Write what happened"]] });
-  c.rows.filter((r) => r.minus).forEach((r) => list.push({ id: `minus-${r.id}`, level: "variance", title: `${r.name} went into minus`, amount: qty(r.should, r.unit, true),
-    body: `The till sold ${qty(r.sold, r.unit)} but only ${qty(r.last + r.received, r.unit)} was in stock. Usually a delivery came in and wasn’t logged.`,
-    actions: [[`delivery:${r.id}`, "Log the missing delivery"], ["explain", "Write what happened"]] }));
+    actions: [["specials", "View special"], ["explain", "Add an explanation"]] }));
+  if (c.cashDiff !== 0) list.push({ id: "cash", level: "variance", title: "Cash difference found", amount: rand(c.cashDiff, true),
+    body: `The till expected ${rand(c.cashShould)} in cash (${rand(FLOAT)} float plus ${rand(c.tillCash)} cash sales), but the count was ${rand(c.cashShould + c.cashDiff)}.`,
+    actions: [["recount", "Ask for a recount"], ["explain", "Add an explanation"]] });
+  if (c.cardDiff !== 0) list.push({ id: "card", level: "variance", title: "Card total doesn’t match", amount: rand(c.cardDiff, true),
+    body: `The till recorded ${rand(TILL_CARD)} in card sales. The card machine shows ${rand(TILL_CARD + c.cardDiff)}.`, actions: [["explain", "Add an explanation"]] });
+  c.rows.filter((r) => r.minus).forEach((r) => list.push({ id: `minus-${r.id}`, level: "variance", title: `Sold more than was in stock: ${r.name}`, amount: qty(r.should, r.unit, true),
+    body: `The till recorded ${qty(r.sold, r.unit)} sold, but only ${qty(r.last + r.received, r.unit)} was in stock. Check whether a delivery or stock change was missed.`,
+    actions: [[`delivery:${r.id}`, "Record the missed delivery"], ["explain", "Add an explanation"]] }));
   c.rows.filter((r) => r.lowNext).forEach((r) => list.push({ id: `low-${r.id}`, level: "pending", title: `Running low: ${r.name}`, amount: qty(r.counted, r.unit),
-    body: `Only ${qty(r.counted, r.unit)} left for the next shift. You asked to be warned at ${qty(r.low, r.unit)}.`, actions: [["ok", "Noted, I’ll reorder"]] }));
+    body: `Only ${qty(r.counted, r.unit)} left for the next shift. Your warning level is ${qty(r.low, r.unit)}.`, actions: [["ok", "Mark for reorder"]] }));
   return list;
 }
 
 const groups = <T extends { group: string }>(rows: T[]) => [...new Set(rows.map((r) => r.group))].map((g) => [g, rows.filter((r) => r.group === g)] as const);
-const TABS = [["alerts", "Alerts"], ["specials", "Today’s specials"], ["last", "Last shift stock"], ["now", "In stock now"], ["made", "What each product made"], ["next", "Stock for next shift"], ["report", "Monthly report"]] as const;
+const TABS = [["alerts", "Needs review"], ["specials", "Today’s specials"], ["last", "Last shift’s stock"], ["now", "Stock on hand"], ["made", "Product earnings"], ["next", "Stock for next shift"], ["report", "Monthly report"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function Demo({ businessName }: { businessName: string }) {
@@ -145,7 +145,7 @@ export default function Demo({ businessName }: { businessName: string }) {
   function act(a: Alert, how: string) {
     if (how === "explain") { setExplaining(a.id); setNote(""); return; }
     if (how === "specials") { setTab("specials"); return; }
-    if (how === "recount") { setView("staff"); window.scrollTo(0, 0); say("You’re now the staff member. Recount and submit again."); return; }
+    if (how === "recount") { setView("staff"); window.scrollTo(0, 0); say("Your manager has asked you to recount. Check the items listed below, explain any changes and submit again."); return; }
     if (how === "ok") { setFixed({ ...fixed, [a.id]: "Noted. Reorder planned." }); return; }
     if (how.startsWith("delivery:")) {
       const id = how.split(":")[1];
@@ -166,7 +166,7 @@ export default function Demo({ businessName }: { businessName: string }) {
     const after = calc(next, cashV, cardV);
     const bad = alertsFor(after, "Thandi").filter((a) => a.level === "variance");
     setFixed({}); setView("owner"); setTab("alerts"); window.scrollTo(0, 0);
-    setBanner(bad.length ? `${businessName}: shift doesn’t tally. ${bad.length} problem${bad.length === 1 ? "" : "s"}${after.missingTotal ? `, ${rand(after.missingTotal)} of stock missing` : ""}${after.cashDiff ? `, cash ${rand(after.cashDiff, true)}` : ""}.` : `${businessName}: shift closed. Stock and money tally.`);
+    setBanner(bad.length ? `${businessName}: shift needs review. ${bad.length} difference${bad.length === 1 ? "" : "s"}${after.missingTotal ? `, ${rand(after.missingTotal)} stock difference` : ""}${after.cashDiff ? `, cash ${rand(after.cashDiff, true)}` : ""}.` : `${businessName}: everything tallied.`);
   }
 
   const signup = `/signup?b=${encodeURIComponent(businessName)}`;
@@ -174,7 +174,7 @@ export default function Demo({ businessName }: { businessName: string }) {
   return (
     <>
       <div style={{ background: "var(--ink)", color: "var(--paper)", fontSize: 14, padding: "8px 16px", textAlign: "center" }}>
-        Sample shift with made-up figures. <a href="#prices" style={{ color: "var(--paper)", fontWeight: 700 }}>See prices</a> · <Link href={signup} style={{ color: "var(--paper)", fontWeight: 700 }}>Start free</Link>
+        Sample shift. These figures are examples. <a href="#prices" style={{ color: "var(--paper)", fontWeight: 700 }}>See plans</a> · <Link href={signup} style={{ color: "var(--paper)", fontWeight: 700 }}>Start free</Link>
       </div>
       <header className="topbar">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>On<b>Point</b></Link>
@@ -186,7 +186,7 @@ export default function Demo({ businessName }: { businessName: string }) {
 
         {banner && (
           <div className="sheet" role="status" style={{ borderWidth: 2, borderColor: "var(--ink)" }}>
-            <p className="small muted" style={{ margin: 0 }}>Example email alert to the owner</p>
+            <p className="small muted" style={{ margin: 0 }}>Example email to the owner</p>
             <p style={{ margin: "4px 0 8px", fontWeight: 700 }}>{banner}</p>
             <button type="button" className="quiet" onClick={() => setBanner(null)}>Close</button>
           </div>
@@ -194,7 +194,7 @@ export default function Demo({ businessName }: { businessName: string }) {
 
         <div className="nav" role="group" aria-label="Whose view" style={{ margin: "8px 0" }}>
           <button type="button" className={view === "owner" ? "" : "quiet"} onClick={() => setView("owner")}>Owner</button>
-          <button type="button" className={view === "staff" ? "" : "quiet"} onClick={() => setView("staff")}>Staff closing the shift</button>
+          <button type="button" className={view === "staff" ? "" : "quiet"} onClick={() => setView("staff")}>Staff</button>
         </div>
 
         {view === "owner" && (
@@ -211,11 +211,11 @@ export default function Demo({ businessName }: { businessName: string }) {
               <>
                 <div className="figures">
                   <div className="figure"><div className="value">{rand(c.tillTotal)}</div><div className="label">Sold on the till</div></div>
-                  <div className="figure"><div className="value" style={{ color: `var(--${c.missingTotal ? "variance" : "matched"})` }}>{rand(c.missingTotal)}</div><div className="label">Missing stock value</div></div>
+                  <div className="figure"><div className="value" style={{ color: `var(--${c.missingTotal ? "variance" : "matched"})` }}>{rand(c.missingTotal)}</div><div className="label">Stock difference</div></div>
                   <div className="figure"><div className="value" style={{ color: `var(--${c.cashDiff ? "variance" : "matched"})` }}>{rand(c.cashDiff, true)}</div><div className="label">Cash difference</div></div>
-                  <div className="figure"><div className="value">{rand(c.specialTaken)}</div><div className="label">Taken on specials</div></div>
+                  <div className="figure"><div className="value">{rand(c.specialTaken)}</div><div className="label">Specials sold</div></div>
                 </div>
-                {!open.length && <p className="notice ok"><strong>Stock and money tally.</strong> Nothing needs your attention.</p>}
+                {!open.length && <p className="notice ok"><strong>Everything tallies.</strong> Nothing needs your attention.</p>}
                 {alerts.map((a) => {
                   const done = fixed[a.id];
                   return (
@@ -230,7 +230,7 @@ export default function Demo({ businessName }: { businessName: string }) {
                           <label htmlFor={`n-${a.id}`}>What happened?</label>
                           <textarea id={`n-${a.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
                           <div className="row" style={{ marginTop: 8 }}>
-                            <button type="button" onClick={() => { if (!note.trim()) return say("Write what happened first."); setFixed({ ...fixed, [a.id]: `Explained: “${note.trim()}”` }); setExplaining(null); }}>Save and close alert</button>
+                            <button type="button" onClick={() => { if (!note.trim()) return say("Explain the difference first."); setFixed({ ...fixed, [a.id]: `Explained: “${note.trim()}”` }); setExplaining(null); }}>Save explanation</button>
                           </div>
                         </>
                       ) : (
@@ -248,7 +248,7 @@ export default function Demo({ businessName }: { businessName: string }) {
               <>
                 <p className="muted small">Each special is tallied on its own: what sold, the mix people chose, and what it did to stock and takings.</p>
                 <div className="figures">
-                  <div className="figure"><div className="value">{rand(c.specialTaken)}</div><div className="label">Taken on specials ({Math.round((c.specialTaken / c.tillTotal) * 100)}% of today)</div></div>
+                  <div className="figure"><div className="value">{rand(c.specialTaken)}</div><div className="label">Specials sold ({Math.round((c.specialTaken / c.tillTotal) * 100)}% of today)</div></div>
                   <div className="figure"><div className="value">{c.specialUnits}</div><div className="label">Items out on specials</div></div>
                   <div className="figure"><div className="value" style={{ color: "var(--pending)" }}>{rand(c.specialDiscount)}</div><div className="label">Given away in discount</div></div>
                   <div className="figure"><div className="value" style={{ color: `var(--${c.tillTotal >= USUAL_DAY ? "matched" : "variance"})` }}>{rand(c.tillTotal - USUAL_DAY, true)}</div><div className="label">Compared with a usual day</div></div>
@@ -302,7 +302,7 @@ export default function Demo({ businessName }: { businessName: string }) {
 
             {tab === "now" && (
               <>
-                <p className="muted small">What staff counted at close, next to what should be there. Should have = last shift stock + deliveries − what the till sold.</p>
+                <p className="muted small">See what staff counted at close and what should be left. Expected stock is based on the previous close, deliveries and recorded sales.</p>
                 {groups(c.rows).map(([g, rows]) => (
                   <div key={g}><h3 style={{ margin: "16px 0 6px" }}>{g}</h3><ul className="lines">
                     {rows.map((r) => {
@@ -329,19 +329,19 @@ export default function Demo({ businessName }: { businessName: string }) {
                       <span className="meta">{r.special ? `${r.normal} at ${rand(r.price)} plus ${r.special} on special (${rand(r.specialMade)})` : `${qty(r.normal, r.unit)} sold at ${rand(r.price)}${r.unit === "g" ? " a gram" : " each"}`}</span></li>
                   ))}
                 </ul>
-                <h2>Does the money tally?</h2>
+                <h2>Do the cash and card totals tally?</h2>
                 <div className="sheet"><table className="working"><tbody>
                   <tr><td>Total sold on the till</td><td>{rand(c.tillTotal)}</td></tr>
-                  <tr><td>Paid by card</td><td>{rand(TILL_CARD)}</td></tr>
-                  <tr><td>Paid in cash</td><td>{rand(c.tillCash)}</td></tr>
-                  <tr><td>Plus the float</td><td>{rand(FLOAT)}</td></tr>
-                  <tr className="total"><td>Cash that should be in the till</td><td>{rand(c.cashShould)}</td></tr>
+                  <tr><td>Card sales</td><td>{rand(TILL_CARD)}</td></tr>
+                  <tr><td>Cash sales</td><td>{rand(c.tillCash)}</td></tr>
+                  <tr><td>Starting float</td><td>{rand(FLOAT)}</td></tr>
+                  <tr className="total"><td>Expected cash</td><td>{rand(c.cashShould)}</td></tr>
                   <tr><td>Cash counted</td><td>{rand(cash)}</td></tr>
                   <tr><td>Cash difference</td><td style={{ color: `var(--${c.cashDiff ? "variance" : "matched"})` }}>{rand(c.cashDiff, true)}</td></tr>
                   <tr><td>Card machine total</td><td>{rand(cardMachine)}</td></tr>
                   <tr><td>Card difference</td><td style={{ color: `var(--${c.cardDiff ? "variance" : "matched"})` }}>{rand(c.cardDiff, true)}</td></tr>
                 </tbody></table></div>
-                {c.missingTotal > 0 && <p className="small muted">The till and cash can match while stock still disappears, when a sale is never rung up or stock is taken. That’s why OnPoint also values the missing stock: {rand(c.missingTotal)} this shift.</p>}
+                {c.missingTotal > 0 && <p className="small muted">Cash and till sales can match even when stock is missing. This can happen when a sale isn’t recorded or stock leaves the shop. That’s why OnPoint checks stock too: {rand(c.missingTotal)} this shift.</p>}
               </>
             )}
 
@@ -362,8 +362,9 @@ export default function Demo({ businessName }: { businessName: string }) {
 
         {view === "staff" && (
           <form onSubmit={submitStaff}>
-            <h2>Close the shift</h2>
-            <p className="muted small">Count what’s on the shelf. Staff don’t see what the system expects, so counts stay honest. Weighed items are in grams.</p>
+            <p style={{ margin: "0 0 4px", fontWeight: 700 }}>Hi, Thandi. Ready to close?</p>
+            <h2 style={{ marginTop: 0 }}>Close your shift</h2>
+            <p className="muted small">Count the stock assigned to you. You won’t see the expected figures, so your count stays fair. Weighed products are counted in grams.</p>
             {groups(products).map(([g, rows]) => (
               <div key={g}><h3 style={{ margin: "16px 0 6px" }}>{g}</h3><ul className="lines">
                 {rows.map((p) => (
@@ -377,10 +378,10 @@ export default function Demo({ businessName }: { businessName: string }) {
             <div className="sheet">
               <label htmlFor="cash" style={{ marginTop: 0 }}>Cash counted in the till (R)</label>
               <input id="cash" name="cash" type="number" inputMode="decimal" defaultValue={cash} />
-              <label htmlFor="card">Card machine end-of-day total (R)</label>
+              <label htmlFor="card">Card total from the settlement slip (R)</label>
               <input id="card" name="card" type="number" inputMode="decimal" defaultValue={cardMachine} />
-              <div style={{ marginTop: 12 }}><button type="submit" style={{ width: "100%" }}>Submit and close shift</button></div>
-              <p className="muted small" style={{ marginBottom: 0 }}>Try it: change a count or the cash, then submit and watch the owner’s alerts change.</p>
+              <div style={{ marginTop: 12 }}><button type="submit" style={{ width: "100%" }}>Submit shift check</button></div>
+              <p className="muted small" style={{ marginBottom: 0 }}>Try changing a stock count or cash total, then submit to see how the owner’s report changes.</p>
             </div>
           </form>
         )}
@@ -388,11 +389,11 @@ export default function Demo({ businessName }: { businessName: string }) {
         <PlanCards signup={signup} name={businessName === "Your dispensary" ? "" : businessName} />
 
         <div className="sheet" style={{ marginTop: 28, borderWidth: 2 }}>
-          <h2 style={{ marginTop: 0 }}>Use OnPoint at {businessName}</h2>
+          <h2 style={{ marginTop: 0 }}>Try OnPoint in your shop</h2>
           <p>{TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
           <Link href={signup} className="button" style={{ width: "100%" }}>Start free</Link>
-          {tab !== "report" && <button type="button" className="quiet" style={{ width: "100%", marginTop: 10 }} onClick={() => { setView("owner"); setTab("report"); window.scrollTo(0, 0); }}>See a sample monthly report</button>}
-          <p className="small muted" style={{ marginBottom: 0 }}><button type="button" className="quiet" style={{ marginTop: 10 }} onClick={() => { setProducts(freshProducts()); setCashCounted(null); setCardMachine(TILL_CARD); setFixed({}); setBanner(null); setView("owner"); setTab("alerts"); }}>Start the demo again</button></p>
+          {tab !== "report" && <button type="button" className="quiet" style={{ width: "100%", marginTop: 10 }} onClick={() => { setView("owner"); setTab("report"); window.scrollTo(0, 0); }}>View a sample monthly report</button>}
+          <p className="small muted" style={{ marginBottom: 0 }}><button type="button" className="quiet" style={{ marginTop: 10 }} onClick={() => { setProducts(freshProducts()); setCashCounted(null); setCardMachine(TILL_CARD); setFixed({}); setBanner(null); setView("owner"); setTab("alerts"); }}>Start again</button></p>
         </div>
       </main>
       {toast && <div role="status" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 24, background: "var(--ink)", color: "var(--paper)", padding: "10px 16px", borderRadius: 999, fontSize: 15, zIndex: 20, maxWidth: "calc(100% - 32px)", textAlign: "center" }}>{toast}</div>}

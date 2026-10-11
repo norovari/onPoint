@@ -13,10 +13,10 @@ export function FillLast({ count }: { count: number }) {
         form?.querySelectorAll<HTMLInputElement>("input[data-last]").forEach((i) => {
           if (i.value === "" && i.dataset.last) { i.value = i.dataset.last; n++; }
         });
-        (e.currentTarget as HTMLButtonElement).textContent = n ? `Filled ${n} from last close. Check each one, then save.` : "Nothing to fill";
+        (e.currentTarget as HTMLButtonElement).textContent = n ? `Filled ${n} products from the last close. Check them and change only what is different.` : "Nothing to fill";
       }}
     >
-      Start from last close ({count} products)
+      Use last close’s counts ({count} products)
     </button>
   );
 }

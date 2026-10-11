@@ -30,9 +30,9 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
     <Shell businessName={s.businessName}>
       <h1>Your plan</h1>
       {q.paid && <p className="notice ok">Payment received. Thank you.</p>}
-      {q.failed && <p className="notice error">The card payment didn’t go through. Try again, or use a different card.</p>}
-      {q.check && <p className="notice">Thanks. Once PayFast confirms your payment it shows under Payments below, usually within a minute. Refresh this page to check.</p>}
-      {q.cancelled && <p className="notice">You left PayFast before paying. Nothing was charged.</p>}
+      {q.failed && <p className="notice error">Your payment didn’t go through. Try again or use a different card.</p>}
+      {q.check && <p className="notice">We’re waiting for payment confirmation. Refresh this page shortly to check.</p>}
+      {q.cancelled && <p className="notice">You left the payment page before paying. Nothing was charged.</p>}
 
       <div className="sheet">
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
@@ -40,17 +40,17 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           <p className="small" style={{ margin: 0 }}>Your reference: <strong className="mono">{p.reference}</strong></p>
         </div>
         <p className="muted" style={{ margin: "4px 0 0" }}>
-          {p.status === "trialing" && `Free trial of ${planName(p.subscribed_plan)} until ${when(p.current_period_end)}. After that you move to Free unless you choose a plan.`}
-          {p.status === "active" && `Paid until ${when(p.current_period_end)}${p.payment_method === "card" ? ", renews automatically by card" : ""}.`}
+          {p.status === "trialing" && `Your free trial ends ${when(p.current_period_end)}. After that, you’ll move to Free unless you choose a paid plan.`}
+          {p.status === "active" && `Paid until ${when(p.current_period_end)}${p.payment_method === "card" ? " · Renews automatically by card" : ""}`}
           {p.status === "past_due" && "Your last card payment failed. Update it within 7 days to keep your plan."}
-          {p.status === "cancelled" && "Your plan has ended. You’re on Free."}
+          {p.status === "cancelled" && "Your paid plan has ended. You’re now on Free."}
           {p.discount_cycles_remaining > 0 && ` Launch discount on your next ${p.discount_cycles_remaining} payment${p.discount_cycles_remaining === 1 ? "" : "s"}.`}
         </p>
         <p className="muted small" style={{ margin: "6px 0 0" }}>History kept: {p.history_days ? `last ${p.history_days} days` : "everything"}.</p>
       </div>
 
       {p.launch_discount_open && owner && (
-        <p className="notice ok"><strong>Launch offer:</strong> subscribe in the next {left} and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
+        <p className="notice ok"><strong>Launch offer:</strong> subscribe in the next {left} to get {LAUNCH_DISCOUNT.pct}% off your first {LAUNCH_DISCOUNT.months} months.</p>
       )}
 
       {!owner && <p className="muted">Only the owner can change the plan.</p>}
@@ -73,7 +73,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
                 {p.launch_discount_open && <p className="small muted" style={{ margin: "2px 0 0" }}>Normally {formatZar(x.price)}. {LAUNCH_DISCOUNT.pct}% off for {LAUNCH_DISCOUNT.months} months.</p>}
                 <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{x.features.map((f) => <li key={f}>{f}</li>)}</ul>
                 <div className="row" style={{ marginTop: 12, flexWrap: "wrap" }}>
-                  {card && <Submit name="method" value="card">Subscribe and pay by card (PayFast)</Submit>}
+                  {card && <Submit name="method" value="card">Subscribe and pay by card</Submit>}
                 </div>
               </ActionForm>
             );
@@ -100,7 +100,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               </div>
             </>
           )}
-          <p className="muted small">To cancel, contact OnPoint. Your plan runs to the end of the month you paid for.</p>
+          <p className="muted small">To cancel, WhatsApp or email us. Your plan stays active until the end of the month you’ve paid for.</p>
         </>
       )}
     </Shell>

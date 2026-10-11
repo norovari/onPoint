@@ -14,7 +14,7 @@ export default function LoginPage() {
   // Coming back from an email link that couldn't sign you in on this device
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("link") === "expired") {
-      setInfo("If you just confirmed your email, it's done: sign in below. If you were resetting your password, ask for a new link and open it on this device.");
+      setInfo("If you’ve just confirmed your email, sign in below. If you’re resetting your password, request a new link and open it on this device.");
     }
   }, []);
 
@@ -26,8 +26,8 @@ export default function LoginPage() {
     const { error } = await createClient().auth.signInWithPassword({ email: String(f.get("email")), password: String(f.get("password")) });
     setBusy(false);
     if (error) {
-      if (error.message.toLowerCase().includes("confirm")) return setError("Open the confirmation link we emailed you first, then sign in.");
-      return setError(error.message === "Invalid login credentials" ? "That email and password don’t match an account." : error.message);
+      if (error.message.toLowerCase().includes("confirm")) return setError("Open the confirmation link we emailed you, then sign in.");
+      return setError(error.message === "Invalid login credentials" ? "That email and password don’t match. Try again." : error.message);
     }
     router.replace("/today");
     router.refresh();
@@ -35,11 +35,11 @@ export default function LoginPage() {
 
   async function forgot() {
     const email = (document.getElementById("email") as HTMLInputElement).value.trim();
-    if (!email) return setError("Enter your email above, then tap “Forgot password” again.");
+    if (!email) return setError("Enter your email, then select “Forgot password” again.");
     setError(null);
     const { error } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/confirm?next=/auth/reset` });
     if (error) return setError(error.message);
-    setInfo("Check your email for a link to set a new password.");
+    setInfo("Check your inbox for a link to reset your password.");
   }
 
   return (
@@ -59,7 +59,7 @@ export default function LoginPage() {
         {info && <p className="notice ok" role="status">{info}</p>}
       </form>
       <p className="muted">New here? <Link href="/signup">Start free</Link></p>
-      <p className="muted small">Staff: create an account with the email your manager will add to the team.</p>
+      <p className="muted small">Staff: use the email address your manager will add to the team.</p>
     </main>
   );
 }

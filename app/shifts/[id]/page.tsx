@@ -33,6 +33,16 @@ type Count = { product_id: string; count_type: string; quantity: string; version
 
 const STAGES = ["opening", "active", "closing_submitted", "approved"];
 
+// How each product got on tonight's check list, in plain words
+const TAG: Record<string, string> = {
+  "Random check": "Random check",
+  "Didn’t tally recently": "Checked often",
+  "Didn't tally recently": "Checked often",
+  "Due for a check": "Due for a check",
+  "Always counted": "Every shift",
+  "Full count": "",
+};
+
 export default async function ShiftPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await requireSession();
@@ -123,7 +133,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   });
   const closingTags = new Map([...listReasons].map(([pid, r]) => {
     const who = assignedTo.get(pid);
-    const tag = [r !== "Full count" ? r : "", manager && who ? `for ${counterName.get(who) ?? "someone"}` : ""].filter(Boolean).join(" · ");
+    const tag = [TAG[r] ?? r, manager && who ? `Assigned to ${counterName.get(who) ?? "someone"}` : ""].filter(Boolean).join(" · ");
     return [pid, tag];
   }));
   const canEnter = ["opening", "active", "correction_requested"].includes(status);
@@ -176,23 +186,23 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
 
       {status === "correction_requested" && lastReturn && (
         <div className="notice error">
-          <strong>Returned by {(lastReturn.profiles as unknown as { full_name: string } | null)?.full_name || "a manager"}:</strong> {lastReturn.notes}
+          <strong>Recount requested by {(lastReturn.profiles as unknown as { full_name: string } | null)?.full_name || "a manager"}:</strong> {lastReturn.notes}
           <br />
-          Recount what’s needed below (each recount needs a reason), then submit the close again.
+          Your manager has asked for a recount. Check the items below, explain any changes and submit the shift again.
         </div>
       )}
 
       {/* ---------------- Opening ---------------- */}
       {status === "opening" && (
         <>
-          <h2>Count opening stock</h2>
+          <h2>Opening stock</h2>
           {[...opening.values()].some((c) => c.source === "carried") ? (
             <p className="notice">
-              Opening stock is carried from the last close, so there’s nothing you have to count. Check the float, count anything you want to double-check, then tap <strong>Finish opening</strong>.
+              Stock carries over from the last close. Check the starting cash and any stock you want to double-check, then tap <strong>Start shift</strong>.
             </p>
           ) : (
             <p className="muted">
-              Count what is physically on the shelf. Weighed items are in grams. You can save as you go and come back.
+              Count what’s on the shelf. Flower is counted in grams. You can save your counts and come back later.
             </p>
           )}
           <CountSheet shiftId={id} type="opening" products={products ?? []} counts={opening} last={[...opening.values()].some((c) => c.source === "carried") ? undefined : lastClose} />
@@ -200,7 +210,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
             <div className="actionbar">
               <div>
                 <span className="small muted">{opening.size} of {products?.length ?? 0} counted</span>
-                <Submit>Finish opening</Submit>
+                <Submit>Start shift</Submit>
               </div>
             </div>
           </ActionForm>
@@ -210,9 +220,9 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       {/* ---------------- During the shift ---------------- */}
       {(status === "active" || status === "correction_requested") && (
         <>
-          <h2>Deliveries, wastage and other stock changes</h2>
+          <h2>Stock in and out</h2>
           <p className="muted small">
-            Record anything that changes stock other than a sale: deliveries, transfers, wastage. Sales come from the POS export.
+            Record stock that comes in or leaves without a sale, such as deliveries, transfers or spills. Sales come from the till.
           </p>
           <ActionForm action={recordMovement} hidden={{ shift_id: id }} className="sheet">
             <div className="row">
@@ -235,20 +245,20 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                 <input id="mv-qty" name="quantity" inputMode="decimal" required />
               </div>
               <div>
-                <label htmlFor="mv-ref">Reference <span className="hint">optional</span></label>
+                <label htmlFor="mv-ref">Reference <span className="hint">delivery note number, optional</span></label>
                 <input id="mv-ref" name="reference" placeholder="Delivery note no." />
               </div>
             </div>
             <label htmlFor="mv-reason">Reason</label>
             <input id="mv-reason" name="reason" required />
-            {!manager && <p className="muted small">Wastage, damage, internal use, transfers out and adjustments need a manager to approve them.</p>}
-            <div style={{ marginTop: 12 }}><Submit>Record movement</Submit></div>
+            {!manager && <p className="muted small">Spills, damage, staff use and transfers out need a manager’s approval.</p>}
+            <div style={{ marginTop: 12 }}><Submit>Save stock change</Submit></div>
           </ActionForm>
 
           {(specials ?? []).length > 0 && (
             <>
               <h2>Specials sold</h2>
-              <p className="muted small">If your till export doesn’t show deals, record each batch of specials here: how many deals, and how many of each item went out.</p>
+              <p className="muted small">If your till report doesn’t show deals, record them here. Enter the number of deals sold and the items that went out.</p>
               {(specials ?? []).map((sp) => {
                 const allowed = new Set((sp.special_products as { product_id: string }[]).map((x) => x.product_id));
                 return (
@@ -257,7 +267,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                     <p className="muted small" style={{ margin: "2px 0 8px" }}>{formatZar(sp.deal_price)} for {sp.items_per_deal} items</p>
                     <label htmlFor={`deals-${sp.id}`}>Deals sold</label>
                     <input id={`deals-${sp.id}`} name="deals" type="number" inputMode="numeric" min="1" step="1" required style={{ maxWidth: 160 }} />
-                    <p style={{ fontWeight: 700, fontSize: 15, margin: "12px 0 4px" }}>Items that went out</p>
+                    <p style={{ fontWeight: 700, fontSize: 15, margin: "12px 0 4px" }}>Items given out</p>
                     <ul className="lines">
                       {(products ?? []).filter((p) => allowed.has(p.id)).map((p) => (
                         <li key={p.id} className="line">
@@ -279,7 +289,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
           {manager && fromCounts && (
             <>
               <h2>Sales</h2>
-              <p className="notice">This shop works out sales from the stock counts. When you close, OnPoint prices what left the shelf and checks it against the cash and card you count. No till file needed. <Link href="/settings">Change this</Link></p>
+              <p className="notice">OnPoint works out sales from stock counts. At close, it checks the value of stock that left the shelf against the cash and card totals. No till file needed. <Link href="/settings">Change this</Link></p>
             </>
           )}
           {manager && (
@@ -296,9 +306,9 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                     )}
                   </div>
                   <details className="sheet">
-                    <summary>No file? Type in the till’s end-of-day report</summary>
+                    <summary>No till file? Enter the quantities sold</summary>
                     <ActionForm action={enterTillSales} hidden={{ shift_id: id }}>
-                      <p className="muted small">Quantity sold of each product at normal price (leave specials out; record them above). Amounts are worked out from your prices.</p>
+                      <p className="muted small">Enter the quantities sold at normal prices. Leave specials out and record them above. OnPoint will use your prices to calculate the amounts.</p>
                       <ul className="lines">
                         {(products ?? []).map((p) => (
                           <li key={p.id} className="line">
@@ -321,7 +331,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                 </>
               )}
 
-              <h2>Cash taken out or put in</h2>
+              <h2>Cash added or taken out</h2>
               <ActionForm action={recordCashEvent} hidden={{ shift_id: id }} className="sheet">
                 <div className="row">
                   <div>
@@ -336,8 +346,8 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                   </div>
                 </div>
                 <label htmlFor="ce-reason">Reason</label>
-                <input id="ce-reason" name="reason" required placeholder="e.g. Drop to safe at 14:00" />
-                <div style={{ marginTop: 12 }}><Submit>Record cash movement</Submit></div>
+                <input id="ce-reason" name="reason" required placeholder="e.g. cash moved to the safe at 14:00" />
+                <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
                 {(cashEvents ?? []).length > 0 && (
                   <p className="muted small">
                     Recorded: {(cashEvents ?? []).map((e) => `${CASH_EVENT[e.event_type]} ${formatZar(e.amount)}`).join("; ")}
@@ -347,7 +357,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
 
               <h2>Bank or card statement <span className="hint">optional</span></h2>
               <p className="muted small">
-                Enter figures from the bank or card-machine statement. If it hasn’t arrived yet, leave this. It will show as awaiting settlement, not as a loss.
+                Enter the figures from your bank or card-machine statement when available. If you don’t have it yet, leave this blank. OnPoint will show it as waiting for the bank, not as a loss.
               </p>
               <ActionForm action={recordSettlement} hidden={{ shift_id: id }} className="sheet">
                 <div className="row">
@@ -365,14 +375,14 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                   <div><label htmlFor="st-ref">Statement reference</label><input id="st-ref" name="reference" required /></div>
                 </div>
                 <div className="row">
-                  <div><label htmlFor="st-gross">Gross (R)</label><input id="st-gross" name="gross" type="number" step="0.01" inputMode="decimal" required /></div>
+                  <div><label htmlFor="st-gross">Total before fees (R)</label><input id="st-gross" name="gross" type="number" step="0.01" inputMode="decimal" required /></div>
                   <div><label htmlFor="st-fees">Fees (R)</label><input id="st-fees" name="fees" type="number" step="0.01" inputMode="decimal" defaultValue="0" /></div>
                 </div>
                 <div className="row">
                   <div><label htmlFor="st-refunds">Refunds (R)</label><input id="st-refunds" name="refunds" type="number" step="0.01" inputMode="decimal" defaultValue="0" /></div>
                   <div><label htmlFor="st-adj">Adjustments (R, ±)</label><input id="st-adj" name="adjustments" inputMode="decimal" defaultValue="0" /></div>
                 </div>
-                <div style={{ marginTop: 12 }}><Submit>Record settlement</Submit></div>
+                <div style={{ marginTop: 12 }}><Submit>Save settlement</Submit></div>
                 {(settlementsRows ?? []).length > 0 && (
                   <p className="muted small">
                     Recorded: {(settlementsRows ?? []).map((r) => `${r.payment_method.toUpperCase()} ${r.provider} ${r.provider_reference} net ${formatZar(r.net_amount)}`).join("; ")}
@@ -382,45 +392,45 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
             </>
           )}
 
-          <h2>{status === "correction_requested" ? "Recount" : "Close the shift"}</h2>
+          <h2>{status === "correction_requested" ? "Recount" : "Ready to close?"}</h2>
           {listReasons.size > 0 && listReasons.size < (products?.length ?? 0) ? (
             <>
               <p className="notice">
-                <strong>Count these {listReasons.size} products tonight.</strong> OnPoint picked them: a few at random, ones that didn’t tally recently, and ones due for a check. The other {(products?.length ?? 0) - listReasons.size} carry forward from the till sales.
+                <strong>Your stock checks: {listReasons.size} products tonight.</strong> The rest carry over from the till sales.
               </p>
               {manager && (
                 <ActionForm action={requestFullCount} hidden={{ shift_id: id }}>
-                  <Submit className="quiet">Count everything this shift instead</Submit>
+                  <Submit className="quiet">Count everything tonight</Submit>
                 </ActionForm>
               )}
             </>
           ) : (
             <p className="muted">
-              Count closing stock without looking at the system figures. The differences are worked out after you submit.
+              Count what’s on the shelf. You won’t see the expected figures. Any differences appear after you submit.
             </p>
           )}
           {status === "active" && (
             <div className="sheet">
-              <h3 style={{ marginTop: 0 }}>Counting with others?</h3>
+              <h3 style={{ marginTop: 0 }}>More than one person on shift?</h3>
               {progress.length === 0 ? (
-                <p className="small" style={{ marginTop: 0 }}>If more than one person is on site, share tonight’s count. OnPoint splits the list at random, so everyone counts something different each time.</p>
+                <p className="small" style={{ marginTop: 0 }}>Share the stock checks between staff. Everyone gets different products to check.</p>
               ) : (
                 <ul className="small" style={{ margin: "0 0 10px", paddingLeft: 18 }}>
                   {progress.map((p) => (
                     <li key={p.user_id}>
-                      <strong>{p.user_id === s.userId ? "You" : p.name}</strong>: {p.counted} of {p.assigned} counted
+                      {p.user_id === s.userId ? <>You’ve checked {p.counted} of {p.assigned} products.</> : <><strong>{p.name}</strong>: checked {p.counted} of {p.assigned}</>}
                     </li>
                   ))}
                 </ul>
               )}
               {!imCounting && (
                 <ActionForm action={joinCount} hidden={{ shift_id: id }}>
-                  <Submit className="quiet">I’m counting tonight</Submit>
+                  <Submit className="quiet">I’m checking stock</Submit>
                 </ActionForm>
               )}
               {canShare && team.length > 1 && (
                 <details style={{ marginTop: 8 }}>
-                  <summary className="small">{progress.length ? "Change who’s counting" : "Choose who’s counting"}</summary>
+                  <summary className="small">{progress.length ? "Change who’s checking" : "Choose who’s checking"}</summary>
                   <ActionForm action={setCounters} hidden={{ shift_id: id }}>
                     {team.map((m) => (
                       <label key={m.id} className="check" style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 400, margin: "4px 0" }}>
@@ -428,13 +438,13 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                         {m.id === s.userId ? `${m.name} (you)` : m.name}
                       </label>
                     ))}
-                    <div style={{ marginTop: 8 }}><Submit>Share the count</Submit></div>
+                    <div style={{ marginTop: 8 }}><Submit>Share the checks</Submit></div>
                   </ActionForm>
                 </details>
               )}
               {shared && !manager && (
                 <p className="small muted" style={{ marginBottom: 0 }}>
-                  {imCounting ? `Below are your ${closingProducts.length} products. Anything you’ve counted stays yours if someone else joins.` : "Tap “I’m counting tonight” to get your share of the list."}
+                  {imCounting ? `Your stock checks: ${closingProducts.length} assigned.` : "Tap “I’m checking stock” to see your list."}
                 </p>
               )}
             </div>
@@ -442,12 +452,12 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
           <CountSheet shiftId={id} type="closing" products={closingProducts} counts={closing} needsReason={status === "correction_requested"} reasons={closingTags} />
 
           {askStatement && !myStatement && <StatementForm shiftId={id} questions={QUESTIONS} />}
-          {askStatement && myStatement && <p className="notice ok">Your end-of-shift statement is saved.</p>}
+          {askStatement && myStatement && <p className="notice ok">Your shift answers have been saved.</p>}
           <ActionForm action={submitClosing} hidden={{ shift_id: id }} className="sheet">
-            <label htmlFor="counted_cash">Cash counted in the till (R)</label>
+            <label htmlFor="counted_cash">Count the cash in the till (R)</label>
             <input id="counted_cash" name="counted_cash" type="number" inputMode="decimal" step="0.01" min="0" required
               defaultValue={shift.counted_closing_cash ?? undefined} />
-            <label htmlFor="card_machine_total">Card machine end-of-day total (R) <span className="hint">leave empty if you have no card machine</span></label>
+            <label htmlFor="card_machine_total">Card total from the settlement slip (R) <span className="hint">leave empty if you have no card machine</span></label>
             <input id="card_machine_total" name="card_machine_total" type="number" inputMode="decimal" step="0.01" min="0"
               defaultValue={shift.card_machine_total ?? undefined} />
             <fieldset style={{ border: 0, padding: 0, margin: "12px 0 0" }}>
@@ -464,11 +474,11 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
               ))}
             </fieldset>
             <label htmlFor="notes">Notes for the next shift <span className="hint">optional</span></label>
-            <textarea id="notes" name="notes" rows={3} placeholder="Anything the manager or next shift should know" />
+            <textarea id="notes" name="notes" rows={3} placeholder="Anything the manager or next shift needs to know" />
             <div className="actionbar">
               <div>
                 <span className="small muted">{closing.size} of {products?.length ?? 0} counted</span>
-                <Submit>Submit close for review</Submit>
+                <Submit>Submit shift</Submit>
               </div>
             </div>
           </ActionForm>
@@ -482,15 +492,15 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
 
       {statements.length > 0 && (
         <section aria-labelledby="st-h">
-          <h2 id="st-h">End-of-shift statements</h2>
-          <p className="small muted" style={{ marginTop: -4 }}>Each confirmed with the person’s own password.</p>
+          <h2 id="st-h">Staff confirmations</h2>
+          <p className="small muted" style={{ marginTop: -4 }}>Each person’s answers, confirmed with their own password.</p>
           {statements.map((st) => (
             <div key={st.user_id} className="sheet">
               <p style={{ margin: 0 }}><strong>{st.user_id === s.userId ? "You" : st.name}</strong> <span className="small muted">{new Date(st.created_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" })}</span></p>
               <dl className="small" style={{ margin: "8px 0" }}>
-                <dt style={{ fontWeight: 700 }}>Anything not rung up?</dt>
+                <dt style={{ fontWeight: 700 }}>Anything not recorded?</dt>
                 <dd style={{ margin: "0 0 6px" }}>{st.unrung ? `Yes: ${st.unrung_detail}` : "No"}</dd>
-                <dt style={{ fontWeight: 700 }}>Anything happen to stock?</dt>
+                <dt style={{ fontWeight: 700 }}>Any stock problems?</dt>
                 <dd style={{ margin: "0 0 6px" }}>{st.stock_event ? `Yes: ${st.stock_event_detail}` : "No"}</dd>
                 {st.notes && (<><dt style={{ fontWeight: 700 }}>Notes</dt><dd style={{ margin: 0 }}>{st.notes}</dd></>)}
               </dl>
@@ -513,7 +523,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
         <>
           {pendingMovements.length > 0 && (
             <>
-              <h2>Movements to approve</h2>
+              <h2>Stock changes waiting for approval</h2>
               <ul className="lines">
                 {pendingMovements.map((m) => {
                   const p = m.products as unknown as { name: string; base_unit: string };
@@ -521,7 +531,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                     <li key={m.id} className="line" data-status="pending">
                       <span className="name">{MOVEMENT_TYPE[m.movement_type]}: {p?.name}, {formatQty(m.quantity, p?.base_unit ?? "unit")}</span>
                       {m.created_by === s.userId ? (
-                        <span className="small muted">Needs another manager</span>
+                        <span className="small muted">Another manager must approve this</span>
                       ) : (
                         <ActionForm action={approveMovement} hidden={{ movement_id: m.id, shift_id: id }}>
                           <Submit className="quiet">Approve</Submit>
@@ -534,15 +544,15 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
               </ul>
             </>
           )}
-          <h2>Your review</h2>
+          <h2>Review shift</h2>
           {workedIt ? (
-            <p className="notice">You worked this shift, so another manager or the owner needs to review it.</p>
+            <p className="notice">You worked this shift. Another manager or the owner must review it.</p>
           ) : (
             <ActionForm action={reviewShift} hidden={{ shift_id: id }} className="sheet">
-              <label htmlFor="review-notes">Notes <span className="hint">required when returning</span></label>
+              <label htmlFor="review-notes">Notes <span className="hint">required when asking for a recount</span></label>
               <textarea id="review-notes" name="notes" rows={3} />
               <div className="row" style={{ marginTop: 12 }}>
-                <Submit className="quiet" name="decision" value="returned">Return for correction</Submit>
+                <Submit className="quiet" name="decision" value="returned">Ask for a recount</Submit>
                 <Submit name="decision" value="approved">Approve shift</Submit>
               </div>
             </ActionForm>
@@ -613,7 +623,7 @@ function CountSheet({
     <ActionForm action={saveCounts} hidden={{ shift_id: shiftId, count_type: type }}>
       {last && last.size > 0 && (
         <p className="small" style={{ margin: "0 0 8px" }}>
-          <FillLast count={last.size} /> <span className="muted">Then check the shelf and change only what’s different.</span>
+          <FillLast count={last.size} /> <span className="muted">Check them and change only what is different.</span>
         </p>
       )}
       <ul className="lines">
@@ -624,7 +634,7 @@ function CountSheet({
               <label htmlFor={`q-${type}-${p.id}`} style={{ margin: 0 }}>
                 <span className="name">{p.name}</span>
                 <span className="hint" style={{ display: "block" }}>
-                  {tare(p) ? `Weigh the jar: the empty jar (${Number(p.container_weight)}g) is taken off` : `${p.sku}, ${p.base_unit === "g" ? "grams" : "units"}`}{c && c.version > 1 && c.source !== "carried" ? `, recount ${c.version}` : ""}{reasons?.get(p.id) ? ` · ${reasons.get(p.id)}` : ""}
+                  {tare(p) ? `Put the full jar on the scale and type the reading. OnPoint subtracts the empty jar’s weight (${Number(p.container_weight)} g).` : `${p.sku}, ${p.base_unit === "g" ? "grams" : "units"}`}{c && c.version > 1 && c.source !== "carried" ? `, recount ${c.version}` : ""}{reasons?.get(p.id) ? ` · ${reasons.get(p.id)}` : ""}
                 </span>
               </label>
               <input
@@ -645,7 +655,7 @@ function CountSheet({
       {(needsReason || anySubmitted) && (
         <>
           <label htmlFor={`reason-${type}`}>
-            Reason for any recount <span className="hint">needed only if you change a saved count</span>
+            Why are you changing this count? <span className="hint">required when changing a saved count</span>
           </label>
           <input id={`reason-${type}`} name="reason" />
         </>

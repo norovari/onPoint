@@ -10,8 +10,8 @@ export function PlanCards({ signup, name }: { signup: string; name: string }) {
     <section id="prices" aria-labelledby="prices-h" style={{ marginTop: 28 }}>
       <h2 id="prices-h">Prices</h2>
       <p className="small" style={{ marginTop: -4 }}>
-        {TRIAL_DAYS} days free with everything on, no card needed. Then month to month, cancel any time.
-        Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} months are <strong>{LAUNCH_DISCOUNT.pct}% off</strong>.
+        Try everything free for {TRIAL_DAYS} days, with no card required. Then month to month, cancel any time.
+        Subscribe before your trial ends to get <strong>{LAUNCH_DISCOUNT.pct}% off</strong> your first {LAUNCH_DISCOUNT.months} months.
       </p>
       <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
         {paid.map((p) => (

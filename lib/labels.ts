@@ -1,39 +1,40 @@
 // Plain-language labels used across screens and reports.
 export const SHIFT_STATUS: Record<string, { label: string; tone: string }> = {
-  opening: { label: "Opening count", tone: "pending" },
+  opening: { label: "Opening", tone: "pending" },
   active: { label: "Open", tone: "neutral" },
   closing_submitted: { label: "Waiting for review", tone: "pending" },
-  correction_requested: { label: "Returned for correction", tone: "variance" },
+  correction_requested: { label: "Recount requested", tone: "variance" },
   approved: { label: "Approved", tone: "matched" },
 };
 
 export const RECON_STATUS: Record<string, string> = {
-  matched: "Matched",
-  variance: "Variance — review",
-  pending: "Awaiting settlement",
-  missing_evidence: "Missing evidence",
+  matched: "Tallies",
+  variance: "Difference found",
+  pending: "Waiting for the bank",
+  missing_evidence: "Not recorded",
+  not_counted: "Not counted",
 };
 
 export const EXCEPTION_TYPE: Record<string, string> = {
-  stock_variance: "Stock doesn’t tally",
-  cash_variance: "Cash doesn’t tally",
-  settlement_variance: "Card machine doesn’t tally",
+  stock_variance: "Stock difference found",
+  cash_variance: "Cash difference found",
+  settlement_variance: "Card total doesn’t match",
   sales_value_variance: "Price check",
-  opening_float_variance: "Opening cash differs from last close",
-  missing_evidence: "Something is missing from the records",
-  special_mismatch: "A special doesn’t tally",
-  went_into_minus: "Went into minus",
+  opening_float_variance: "Starting cash differs from last close",
+  missing_evidence: "Something wasn’t recorded",
+  special_mismatch: "Special offer doesn’t tally",
+  went_into_minus: "Sold more than was in stock",
   low_stock: "Running low",
 };
 
 export const MOVEMENT_TYPE: Record<string, string> = {
-  RECEIPT: "Delivery received",
-  TRANSFER_IN: "Transfer in",
-  TRANSFER_OUT: "Transfer out",
-  WASTAGE: "Wastage",
+  RECEIPT: "Delivery",
+  TRANSFER_IN: "Moved in",
+  TRANSFER_OUT: "Moved out",
+  WASTAGE: "Thrown away",
   DAMAGE: "Damaged",
-  INTERNAL_USE: "Internal use",
-  ADJUSTMENT: "Adjustment (+/−)",
+  INTERNAL_USE: "Staff use",
+  ADJUSTMENT: "Correction (+/−)",
 };
 
 export const CASH_EVENT: Record<string, string> = {

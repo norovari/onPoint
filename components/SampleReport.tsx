@@ -7,7 +7,7 @@ export function SampleReport({ businessName, note }: { businessName: string; not
   return (
     <div>
       <p className="notice">
-        <strong>Sample report.</strong> {note ?? `This is what ${businessName} would see after a month on OnPoint. The numbers are examples.`}
+        <strong>Sample monthly report.</strong> {note ?? `These example figures show what ${businessName} could see after a month using OnPoint.`}
       </p>
       <InsightsReport data={SAMPLE_INSIGHTS} businessName={businessName} />
     </div>

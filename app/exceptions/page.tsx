@@ -7,7 +7,7 @@ import { ReasonFields } from "@/components/ReasonFields";
 import { formatQty, formatZar } from "@/lib/calculations";
 import { EXCEPTION_TYPE, when } from "@/lib/labels";
 
-export const metadata = { title: "Alerts" };
+export const metadata = { title: "Needs review" };
 
 export default async function Exceptions({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const { show } = await searchParams;
@@ -24,16 +24,16 @@ export default async function Exceptions({ searchParams }: { searchParams: Promi
 
   return (
     <Shell businessName={s.businessName}>
-      <h1>Alerts</h1>
+      <h1>Needs review</h1>
       <p className="lede">
-        Differences the system found between what was recorded and what was counted or settled. A difference is something to look into. It is not proof of wrongdoing.
+        These are differences between what was recorded and what was counted or paid. They need checking, but they don’t prove that anyone did something wrong.
       </p>
       <nav className="nav" aria-label="Filter" style={{ marginBottom: 16 }}>
-        <Link href="/exceptions" aria-current={!closed ? "page" : undefined}>Needs attention</Link>
-        <Link href="/exceptions?show=closed" aria-current={closed ? "page" : undefined}>Closed</Link>
+        <Link href="/exceptions" aria-current={!closed ? "page" : undefined}>Needs review</Link>
+        <Link href="/exceptions?show=closed" aria-current={closed ? "page" : undefined}>Done</Link>
       </nav>
 
-      {!data?.length && <p className="notice ok">{closed ? "Nothing closed yet." : "Nothing needs attention right now."}</p>}
+      {!data?.length && <p className="notice ok">{closed ? "Nothing marked as done yet." : "Nothing to review right now."}</p>}
 
       {data?.map((e) => {
         const p = e.products as unknown as { name: string; base_unit: string } | null;
@@ -48,16 +48,16 @@ export default async function Exceptions({ searchParams }: { searchParams: Promi
             </div>
             <p className="muted small" style={{ margin: "2px 0 8px" }}>
               <Link href={`/shifts/${e.shift_id}`}>{sh?.locations?.name}, shift of {when(sh?.opened_at)}</Link>
-              {e.stage === "opening" ? ", found at opening" : ""}
-              {e.expected !== null && <>. Expected {fmt(e.expected)}, found {fmt(e.actual)}.</>}
+              {e.stage === "opening" ? " · Difference found at opening" : ""}
+              {e.expected !== null && <> · Counted {fmt(e.actual)} · Expected {fmt(e.expected)}</>}
             </p>
             {e.explanation && <p style={{ whiteSpace: "pre-wrap", margin: "0 0 8px" }}>{e.explanation}</p>}
             {!closed && (
               <ActionForm action={updateException} hidden={{ exception_id: e.id }}>
-                <ReasonFields id={e.id} label={isManager(s.role) ? "What happened, or how it was fixed" : "What happened?"} />
+                <ReasonFields id={e.id} label="Explain what happened or how it was fixed" />
                 <div className="row" style={{ marginTop: 10 }}>
                   <Submit className="quiet" name="status" value="explained">Save explanation</Submit>
-                  {isManager(s.role) && <Submit name="status" value="resolved">Resolve</Submit>}
+                  {isManager(s.role) && <Submit name="status" value="resolved">Mark as done</Submit>}
                 </div>
               </ActionForm>
             )}

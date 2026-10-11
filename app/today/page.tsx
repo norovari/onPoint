@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { openShift } from "@/app/actions";
 import { SHIFT_STATUS, when } from "@/lib/labels";
-import { LAUNCH_DISCOUNT, planName, timeLeft } from "@/lib/plans";
+import { LAUNCH_DISCOUNT, timeLeft } from "@/lib/plans";
 
 export const metadata = { title: "Today" };
 
@@ -41,12 +41,12 @@ export default async function Today() {
     ]);
     const unpriced = (prods ?? []).filter((p) => !(p.product_prices as { valid_to: string | null }[]).some((x) => !x.valid_to)).length;
     steps = [
-      { done: (prods ?? []).length > 0, label: "Add your products", href: "/settings", hint: "Upload your product list or add them one by one." },
-      { done: (prods ?? []).length > 0 && unpriced === 0, label: "Check your prices", href: "/settings", hint: unpriced ? `${unpriced} product${unpriced === 1 ? " has" : "s have"} no price yet.` : "Prices are used to value stock and sales." },
-      { done: (team ?? 0) > 1, label: "Invite your staff", href: "/settings", hint: "Each person gets their own login, so every count is signed." },
-      { done: biz?.sales_source === "counts" || (imports ?? 0) > 0, label: "Choose how sales come in", href: "/settings", hint: "Upload your till file each shift, or let OnPoint work it out from the counts." },
-      { done: (shifts ?? 0) > 0, label: "Open your first shift", hint: "Count the float and the opening stock below." },
-      { done: (closed ?? 0) > 0, label: "Close your first shift", hint: "Count again at the end, then see what tallies." },
+      { done: (prods ?? []).length > 0, label: "Add your products", href: "/settings", hint: "Upload your product list or add products one by one." },
+      { done: (prods ?? []).length > 0 && unpriced === 0, label: "Check your prices", href: "/settings", hint: unpriced ? `${unpriced} product${unpriced === 1 ? " has" : "s have"} no price yet. Add a price so OnPoint can calculate stock and sales values.` : "Add a price so OnPoint can calculate stock and sales values." },
+      { done: (team ?? 0) > 1, label: "Invite your staff", href: "/settings", hint: "Each person gets their own login, so every check is recorded under their name." },
+      { done: biz?.sales_source === "counts" || (imports ?? 0) > 0, label: "Choose how sales are recorded", href: "/settings", hint: "Upload your till report each shift or let OnPoint work out sales from stock counts." },
+      { done: (shifts ?? 0) > 0, label: "Open your first shift", hint: "Count the starting cash and opening stock where required." },
+      { done: (closed ?? 0) > 0, label: "Close your first shift", hint: "Complete the checks and see whether everything tallies." },
     ];
   }
   const stepsLeft = steps.filter((x) => !x.done).length;
@@ -58,24 +58,28 @@ export default async function Today() {
   return (
     <Shell businessName={s.businessName}>
       <h1>Today</h1>
-      <p className="lede">Hi {s.fullName.split(" ")[0] || "there"}. Here’s where every till stands.</p>
+      <p className="lede">
+        {s.role === "staff" && (inProgress ?? []).some((x) => x.status === "active")
+          ? `Hi, ${s.fullName.split(" ")[0] || "there"}. Ready to close?`
+          : `Hi, ${s.fullName.split(" ")[0] || "there"}. Here’s the latest from your shop.`}
+      </p>
 
       {s.role === "owner" && plan?.launch_discount_open && (
         <p className="notice ok">
-          <strong>{LAUNCH_DISCOUNT.pct}% off your first {LAUNCH_DISCOUNT.months} months</strong> if you subscribe in the next {left}. <Link href="/billing">See plans</Link>
+          Get <strong>{LAUNCH_DISCOUNT.pct}% off your first {LAUNCH_DISCOUNT.months} months</strong> when you subscribe in the next {left}. <Link href="/billing">View plans</Link>
         </p>
       )}
       {s.role === "owner" && plan?.status === "trialing" && plan.plan !== "free" && !plan.launch_discount_open && (
-        <p className="notice">Free trial of {planName(plan.plan)} until {when(plan.current_period_end)}. <Link href="/billing">Choose a plan</Link></p>
+        <p className="notice">Your free trial ends {when(plan.current_period_end)}. <Link href="/billing">View plans</Link></p>
       )}
       {s.role === "owner" && plan?.status === "past_due" && (
-        <p className="notice error">Your last card payment failed. <Link href="/billing">Update it</Link> within 7 days to keep your plan.</p>
+        <p className="notice error">Your last card payment failed. <Link href="/billing">Update your payment details</Link> within 7 days to keep your plan.</p>
       )}
 
       {stepsLeft > 0 && (
         <div className="sheet">
-          <h2 style={{ marginTop: 0 }}>Get set up</h2>
-          <p className="small muted" style={{ marginTop: -6 }}>{steps.length - stepsLeft} of {steps.length} done</p>
+          <h2 style={{ marginTop: 0 }}>Set up your shop</h2>
+          <p className="small muted" style={{ marginTop: -6 }}>{steps.length - stepsLeft} of {steps.length} complete</p>
           <ol className="lines" style={{ listStyle: "none", paddingLeft: 0 }}>
             {steps.map((x) => (
               <li key={x.label} className="line" data-status={x.done ? "matched" : undefined}>
@@ -92,7 +96,7 @@ export default async function Today() {
       {products === 0 && stepsLeft === 0 && (
         <p className="notice">
           Add your products before the first shift.{" "}
-          {s.role === "owner" ? <Link href="/settings">Add products</Link> : "Ask the owner to add them."}
+          {s.role === "owner" ? <Link href="/settings">Add products</Link> : "Staff: Ask the owner to add them."}
         </p>
       )}
 
@@ -118,7 +122,7 @@ export default async function Today() {
         <ActionForm action={openShift} className="sheet">
           <h2 style={{ marginTop: 0 }}>Open a shift</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Count the cash in the till first. You’ll count stock on the next screen.
+            Count the cash in the till first. You’ll check stock on the next screen.
           </p>
           {free.length > 1 ? (
             <>
@@ -141,7 +145,7 @@ export default async function Today() {
       <div className="figures">
         <Link href="/exceptions" className="figure" style={{ color: "inherit", textDecoration: "none" }}>
           <div className="value" style={{ color: openExceptions ? "var(--variance)" : "var(--matched)" }}>{openExceptions ?? 0}</div>
-          <div className="label">open exceptions</div>
+          <div className="label">items needing review</div>
         </Link>
         {isManager(s.role) && (
           <div className="figure">
@@ -151,7 +155,7 @@ export default async function Today() {
         )}
       </div>
 
-      {s.role !== "staff" && <p><Link href="/reports/monthly">Monthly report: what goes missing most</Link></p>}
+      {s.role !== "staff" && <p><Link href="/reports/monthly">Monthly report</Link></p>}
 
       <h2>Recent shifts</h2>
       {recent?.length ? (
@@ -169,7 +173,7 @@ export default async function Today() {
           })}
         </ul>
       ) : (
-        <p className="muted">No shifts yet. Open your first one above.</p>
+        <p className="muted">No shifts yet. Open your first shift above.</p>
       )}
     </Shell>
   );

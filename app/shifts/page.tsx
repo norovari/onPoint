@@ -41,7 +41,7 @@ export default async function Shifts({ searchParams }: { searchParams: Promise<{
           })}
         </ul>
       ) : (
-        <p className="muted">No shifts match this filter.</p>
+        <p className="muted">No shifts match these filters.</p>
       )}
     </Shell>
   );

@@ -11,14 +11,14 @@ export async function sendShiftAlert(input: { to: string[]; businessName: string
   const link = site ? `${site.replace(/\/$/, "")}/shifts/${input.shiftId}` : "";
   const st = input.statements ?? [];
   const subject = input.problems
-    ? `${input.businessName}: shift doesn’t tally (${input.problems} alert${input.problems === 1 ? "" : "s"})`
-    : `${input.businessName}: shift closed, everything tallied`;
+    ? `${input.businessName}: ${input.problems} thing${input.problems === 1 ? "" : "s"} to review tonight`
+    : `${input.businessName}: Everything tallied tonight`;
   const text = [
     input.problems
-      ? `A shift at ${input.businessName} was just closed and ${input.problems} thing${input.problems === 1 ? "" : "s"} didn’t tally.`
-      : `A shift at ${input.businessName} was just closed and everything tallied.`,
-    ...(st.length ? ["", "End-of-shift statements (confirmed with each person’s password):", "", ...st.flatMap((x) => [x, ""])] : [""]),
-    link ? `Open the shift to see the photos${input.problems ? " and clear the alerts" : ""}: ${link}` : "Open OnPoint to see the details.",
+      ? `The shift at ${input.businessName} has closed. ${input.problems} thing${input.problems === 1 ? " needs" : "s need"} review.`
+      : `The shift at ${input.businessName} has closed. Everything tallied.`,
+    ...(st.length ? ["", "Staff confirmations (each person’s answers, confirmed with their password):", "", ...st.flatMap((x) => [x, ""])] : [""]),
+    link ? `Open the shift to view the photos${input.problems ? " and review any differences" : ""}: ${link}` : "Open OnPoint to see the details.",
     "",
     "OnPoint",
   ].join("\n");
@@ -49,12 +49,12 @@ function trialSummary(t: TrialEmail, past: boolean) {
       : "You haven't closed a shift yet. Close one today and see what OnPoint catches.";
   }
   const shifts = `${t.shiftsClosed} shift${t.shiftsClosed === 1 ? "" : "s"}`;
-  if (t.alerts === 0) return `${past ? "During your trial you closed" : "So far you've closed"} ${shifts}, and everything tallied.`;
+  if (t.alerts === 0) return `${past ? "During your trial you closed" : "You’ve closed"} ${shifts}, and everything tallied.`;
   const money = [
     t.missingValue > 0 ? `${rand(t.missingValue)} of missing stock` : "",
     t.cashShort > 0 ? `${rand(t.cashShort)} short in cash` : "",
   ].filter(Boolean).join(" and ");
-  return `${past ? "During your trial you closed" : "So far you've closed"} ${shifts}, and OnPoint flagged ${t.alerts} thing${t.alerts === 1 ? "" : "s"} that didn't tally${money ? `, including ${money}` : ""}.`;
+  return `${past ? "During your trial you closed" : "You’ve closed"} ${shifts}, and ${t.alerts} item${t.alerts === 1 ? "" : "s"} need${t.alerts === 1 ? "s" : ""} review${money ? `, including ${money}` : ""}.`;
 }
 
 // The day before the trial ends, and once it has ended. Returns true if sent.
@@ -74,17 +74,17 @@ export async function sendTrialEmail(t: TrialEmail) {
         "",
         trialSummary(t, false),
         "",
-        "Subscribe before your trial ends and your first 3 months are 20% off:",
+        "Subscribe before your trial ends to get 20% off your first 3 months:",
         billing,
       ]
     : [
         "Hi,",
         "",
-        `Your free OnPoint trial for ${t.businessName} has ended, and your shop is now on the Free plan. Shift counts still work, but email alerts, specials, staff sign-off and the monthly report are switched off.`,
+        `Your free trial for ${t.businessName} has ended, and your shop is now on the Free plan. Some features are no longer available on this plan.`,
         "",
         trialSummary(t, true),
         "",
-        `The 20% launch discount is still open until ${until}. Subscribe here to switch everything back on:`,
+        `You can subscribe here to turn them back on (the 20% launch discount is still open until ${until}):`,
         billing,
       ];
   const text = [...lines, "", `Your reference: ${t.reference}`, "", "One Love 💚💛❤️", "Dee, OnPoint"].join("\n");

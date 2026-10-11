@@ -10,10 +10,10 @@ export const metadata = { title: "Settings" };
 
 function optionSummary(p: { always_count: boolean; low_stock_level: string | null; allowance_pct: string | null; container_weight: string | null }) {
   return [
-    p.always_count && "every shift",
-    p.low_stock_level !== null && `warn below ${Number(p.low_stock_level)}`,
-    p.allowance_pct !== null && Number(p.allowance_pct) > 0 && `${Number(p.allowance_pct)}% allowance`,
-    p.container_weight !== null && Number(p.container_weight) > 0 && `jar ${Number(p.container_weight)}g`,
+    p.always_count && "check every shift",
+    p.low_stock_level !== null && `warn me below ${Number(p.low_stock_level)}`,
+    p.allowance_pct !== null && Number(p.allowance_pct) > 0 && `${Number(p.allowance_pct)}% extra allowed`,
+    p.container_weight !== null && Number(p.container_weight) > 0 && `empty jar ${Number(p.container_weight)} g`,
   ].filter(Boolean).join(", ");
 }
 
@@ -40,10 +40,10 @@ export default async function Settings() {
       <h1>Settings</h1>
 
       <h2>Products</h2>
-      <p className="muted small">Your menu. Till items are linked to these products the first time you upload a till file.</p>
+      <p className="muted small">Your product list. When you upload till sales, OnPoint matches the till items to these products.</p>
       <div className="scroll">
         <table className="data">
-          <thead><tr><th>Product</th><th>Category</th><th>Counted in</th><th className="num">Price</th><th>Counting</th></tr></thead>
+          <thead><tr><th>Product</th><th>Category</th><th>Sold by</th><th className="num">Price</th><th>Stock checks</th></tr></thead>
           <tbody>
             {(products ?? []).map((p) => {
               const price = currentPrice(p as never);
@@ -51,24 +51,24 @@ export default async function Settings() {
                 <tr key={p.id}>
                   <td>{p.name}<br /><span className="muted small">{p.sku}</span></td>
                   <td>{p.category || <span className="muted">none</span>}</td>
-                  <td>{p.base_unit === "g" ? "grams" : "units"}</td>
+                  <td>{p.base_unit === "g" ? "gram" : "unit"}</td>
                   <td className="num">{price === undefined ? "—" : p.base_unit === "g" ? `${formatZar(price)}/g` : formatZar(price)}</td>
                   <td>
-                    <span className="small">{optionSummary(p) || <span className="muted">standard</span>}</span>
+                    <span className="small">{optionSummary(p) || <span className="muted">Default</span>}</span>
                     {owner && (
                       <details>
-                        <summary className="small">Change</summary>
+                        <summary className="small">Edit</summary>
                         <ActionForm action={setProductOptions} hidden={{ product_id: p.id }}>
                           <label className="check" style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 400 }}>
-                            <input type="checkbox" name="always_count" defaultChecked={p.always_count} style={{ width: "auto" }} /> Count every shift
+                            <input type="checkbox" name="always_count" defaultChecked={p.always_count} style={{ width: "auto" }} /> Check every shift
                           </label>
-                          <label htmlFor={`low-${p.id}`}>Warn when below</label>
+                          <label htmlFor={`low-${p.id}`}>Warn me when stock is low (below)</label>
                           <input id={`low-${p.id}`} name="low_stock_level" inputMode="decimal" defaultValue={p.low_stock_level ?? ""} style={{ width: 100 }} />
                           {p.base_unit === "g" && (
                             <>
-                              <label htmlFor={`alw-${p.id}`}>Allowance on sales, % <span className="hint">extra you’re happy to give, e.g. 10 = 2.2g on a 2g bag</span></label>
+                              <label htmlFor={`alw-${p.id}`}>Extra allowed per bag (%) <span className="hint">For example, 10% allows 2.2 g in a 2 g bag.</span></label>
                               <input id={`alw-${p.id}`} name="allowance_pct" inputMode="decimal" defaultValue={p.allowance_pct ?? ""} style={{ width: 100 }} />
-                              <label htmlFor={`jar-${p.id}`}>Empty jar, grams <span className="hint">staff weigh the whole jar; this is taken off</span></label>
+                              <label htmlFor={`jar-${p.id}`}>Empty jar weight (g) <span className="hint">OnPoint subtracts this from the full jar reading.</span></label>
                               <input id={`jar-${p.id}`} name="container_weight" inputMode="decimal" defaultValue={p.container_weight ?? ""} style={{ width: 100 }} />
                             </>
                           )}
@@ -90,8 +90,8 @@ export default async function Settings() {
         <ActionForm action={addProduct} className="sheet">
           <h3>Add a product</h3>
           <div className="row">
-            <div><label htmlFor="p-sku">SKU</label><input id="p-sku" name="sku" required /></div>
-            <div><label htmlFor="p-code">POS code</label><input id="p-code" name="pos_code" /></div>
+            <div><label htmlFor="p-sku">Product code</label><input id="p-sku" name="sku" required /></div>
+            <div><label htmlFor="p-code">Till code</label><input id="p-code" name="pos_code" /></div>
           </div>
           <label htmlFor="p-name">Name</label>
           <input id="p-name" name="name" required />
@@ -100,10 +100,10 @@ export default async function Settings() {
           <datalist id="p-cats">{CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
           <div className="row">
             <div>
-              <label htmlFor="p-mode">Sold</label>
-              <select id="p-mode" name="tracking_mode"><option value="unit">By the unit</option><option value="weight">By the gram</option></select>
+              <label htmlFor="p-mode">Sold by</label>
+              <select id="p-mode" name="tracking_mode"><option value="unit">Unit</option><option value="weight">Gram</option></select>
             </div>
-            <div><label htmlFor="p-price">Price (R per unit, or per gram)</label><input id="p-price" name="price" inputMode="decimal" required /></div>
+            <div><label htmlFor="p-price">Price (R per unit or gram)</label><input id="p-price" name="price" inputMode="decimal" required /></div>
           </div>
           <div style={{ marginTop: 12 }}><Submit>Add product</Submit></div>
         </ActionForm>
@@ -111,7 +111,7 @@ export default async function Settings() {
 
 
       <h2>Specials</h2>
-      <p className="muted small">Set up your deals once (for example “Any 2 indoor pre-rolls for R200”). OnPoint tallies each one on its own: deals sold, the mix people chose, the discount, and any extra items that went out.</p>
+      <p className="muted small">Set up your deals once. For example, “Any 2 indoor pre-rolls for R200”. OnPoint tracks each deal, including the items sold and the discount.</p>
       {(specials ?? []).length > 0 && (
         <ul className="lines">
           {(specials ?? []).map((sp) => (
@@ -140,7 +140,7 @@ export default async function Settings() {
             <div><label htmlFor="sp-price">Deal price (R)</label><input id="sp-price" name="deal_price" inputMode="decimal" required /></div>
             <div><label htmlFor="sp-per">Items per deal</label><input id="sp-per" name="items_per_deal" type="number" min="1" step="1" defaultValue="2" required /></div>
           </div>
-          <label htmlFor="sp-code">Till code <span className="hint">optional: how the deal appears in your till export</span></label>
+          <label htmlFor="sp-code">Till code <span className="hint">optional</span></label>
           <input id="sp-code" name="code" />
           <p style={{ fontWeight: 700, fontSize: 15, margin: "12px 0 4px" }}>Customers can choose from</p>
           {(products ?? []).filter((p) => p.active).map((p) => (
@@ -172,8 +172,8 @@ export default async function Settings() {
           </ul>
           {owner && (
             <ActionForm action={addMember} className="sheet">
-              <h3>Add a team member</h3>
-              <p className="muted small" style={{ marginTop: 0 }}>They need to create an OnPoint account with this email first.</p>
+              <h3>Add team member</h3>
+              <p className="muted small" style={{ marginTop: 0 }}>Each team member must create an OnPoint account using their own email first.</p>
               <div className="row">
                 <div><label htmlFor="m-email">Email</label><input id="m-email" name="email" type="email" required /></div>
                 <div>
@@ -189,59 +189,59 @@ export default async function Settings() {
 
       {owner && biz && (
         <>
-          <h2>How sales get into OnPoint</h2>
+          <h2>Where your sales come from</h2>
           <ActionForm action={setSalesSource} className="sheet">
             <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>
               <input type="radio" name="sales_source" value="till" defaultChecked={biz.sales_source !== "counts"} style={{ width: "auto", marginTop: 4 }} />
-              <span><strong>From our till.</strong> Each shift, upload the till’s sales export (any layout, CSV or Excel) or type in its end-of-day report. Most detailed: shows exactly which product is short.</span>
+              <span><strong>From your till.</strong> Upload the till’s sales report or enter its end-of-day totals. This gives you more detail about which products are short.</span>
             </label>
             <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400, marginTop: 10 }}>
               <input type="radio" name="sales_source" value="counts" defaultChecked={biz.sales_source === "counts"} style={{ width: "auto", marginTop: 4 }} />
-              <span><strong>Work it out from our counts.</strong> No till file needed. At close, OnPoint prices the stock that left the shelf and checks it against the cash and card you count, so you still see if money is missing.</span>
+              <span><strong>From stock counts.</strong> No till file needed. OnPoint estimates what left the shelf and checks it against the cash and card totals.</span>
             </label>
             <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
           </ActionForm>
 
-          <h2>How you count stock</h2>
+          <h2>Stock checks</h2>
           <ActionForm action={setCountSettings} className="sheet">
             <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>
               <input type="radio" name="count_mode" value="full" defaultChecked={biz.count_mode !== "spot"} style={{ width: "auto", marginTop: 4 }} />
-              <span><strong>Count everything at every close.</strong> Best for a small menu.</span>
+              <span><strong>Count everything.</strong> Check every product at every close. Best for a small menu.</span>
             </label>
             <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400, marginTop: 10 }}>
               <input type="radio" name="count_mode" value="spot" defaultChecked={biz.count_mode === "spot"} disabled={biz.sales_source === "counts"} style={{ width: "auto", marginTop: 4 }} />
-              <span><strong>Spot-check a few products each shift.</strong> OnPoint picks the list: some at random, ones that didn’t tally recently, and ones not checked for a while. Everything else carries forward from the till sales. Cash is still checked every shift.{biz.sales_source === "counts" && <><br /><span className="muted">Needs till sales: without a till file the full count is how sales are worked out.</span></>}</span>
+              <span><strong>Spot-check products.</strong> OnPoint chooses products to check each shift. Other stock carries forward from recorded sales. Cash is still checked every shift.{biz.sales_source === "counts" && <><br /><span className="muted">To work out sales from stock counts, you must count all stock at each close.</span></>}</span>
             </label>
             <div className="row" style={{ marginTop: 10 }}>
-              <div><label htmlFor="c-per">Products per shift</label><input id="c-per" name="spot_per_shift" type="number" min="3" max="200" defaultValue={biz.spot_per_shift ?? 12} /></div>
+              <div><label htmlFor="c-per">Products to check per shift</label><input id="c-per" name="spot_per_shift" type="number" min="3" max="200" defaultValue={biz.spot_per_shift ?? 12} /></div>
               <div><label htmlFor="c-days">Check every product at least every … days</label><input id="c-days" name="full_count_days" type="number" min="1" max="60" defaultValue={biz.full_count_days ?? 7} /></div>
             </div>
             <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
           </ActionForm>
 
-          <h2>End-of-shift statements</h2>
+          <h2>Shift questions</h2>
           <ActionForm action={setRequireStatement} className="sheet">
             <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>
               <input type="checkbox" name="require_statement" defaultChecked={biz.require_statement !== false} style={{ width: "auto", marginTop: 4 }} />
-              <span><strong>Ask for a statement at close.</strong> Before closing, each person answers three short questions (anything not rung up, anything happen to stock, anything you should know), adds photos of the jars on the scale and the cash drawer, and confirms with their own password. You see it on the shift and in the nightly email.</span>
+              <span><strong>Ask staff the three shift questions at close.</strong> Each person explains anything not recorded, reports stock problems, adds notes and photos, and confirms using their own password. Answers appear in the shift report and nightly email.</span>
             </label>
             <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
           </ActionForm>
 
-          <h2>When to flag a difference</h2>
+          <h2>Differences to flag</h2>
           <ActionForm action={updateTolerances} className="sheet">
             <div className="row">
               <div>
-                <label htmlFor="t-cash">Cash tolerance (R)</label>
+                <label htmlFor="t-cash">Ignore cash differences up to (R)</label>
                 <input id="t-cash" name="cash_tolerance" type="number" step="0.01" min="0" defaultValue={biz.cash_tolerance} />
               </div>
               <div>
-                <label htmlFor="t-stock">Stock tolerance (%)</label>
+                <label htmlFor="t-stock">Ignore stock differences up to (%)</label>
                 <input id="t-stock" name="stock_tolerance_pct" type="number" step="0.001" min="0" defaultValue={biz.stock_tolerance_pct} />
               </div>
             </div>
             <p className="muted small">Zero flags every difference. A small stock tolerance helps with scale rounding on weighed items.</p>
-            <Submit>Save tolerances</Submit>
+            <Submit>Save</Submit>
           </ActionForm>
         </>
       )}

@@ -11,7 +11,7 @@ function businessName(b?: string) {
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const name = businessName((await searchParams).b);
   const title = name ? `${name}: your OnPoint demo` : "OnPoint – Dispensary Tracker demo";
-  const description = "OnPoint – Dispensary Tracker. Track your stock at the start and end of each shift, what each product made, and alerts when stock or cash don't tally.";
+  const description = "OnPoint – Dispensary Tracker. Track your stock at the start and end of each shift, what each product earned, and what needs review when stock or cash don't tally.";
   return {
     title: { absolute: title },
     description,

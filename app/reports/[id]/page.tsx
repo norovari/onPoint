@@ -41,7 +41,7 @@ export default async function Report({ params }: { params: Promise<{ id: string 
           <tr><td>Opened</td><td>{when(shift.opened_at)} by {name(shift.opener)}</td></tr>
           <tr><td>Closed</td><td>{when(shift.closing_submitted_at)} by {name(shift.closer)}</td></tr>
           <tr><td>Reviewed</td><td>{final ? `${when(final.decided_at)} by ${name(final.profiles)}` : "Not yet"}</td></tr>
-          <tr><td>POS import</td><td>{(imports ?? []).map((i) => `${i.file_name} (${i.row_count} lines, ref ${i.file_sha256.slice(0, 10)})`).join("; ") || "None"}</td></tr>
+          <tr><td>Till file</td><td>{(imports ?? []).map((i) => `${i.file_name} (${i.row_count} lines, ref ${i.file_sha256.slice(0, 10)})`).join("; ") || "None"}</td></tr>
           <tr><td>Generated</td><td>{when(new Date().toISOString())}</td></tr>
         </tbody>
       </table>

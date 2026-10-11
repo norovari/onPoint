@@ -17,7 +17,7 @@ export default async function Onboarding() {
       <p className="brand">On<b>Point</b></p>
       <h1>Set up your shop</h1>
       <p className="lede">
-        If you work for a shop that already uses OnPoint, ask the owner to add {data.user.email} to their team instead.
+        Already work at a shop using OnPoint? Ask the owner to add {data.user.email} to the team instead.
       </p>
       <ActionForm action={createBusiness} className="sheet">
         <label htmlFor="full_name">Your name</label>
@@ -26,11 +26,11 @@ export default async function Onboarding() {
         <input id="name" name="name" required defaultValue={String(data.user.user_metadata?.business_name ?? "")} />
         <label htmlFor="location">Shop name or area <span className="hint">e.g. Main store</span></label>
         <input id="location" name="location" required defaultValue="Main store" />
-        <label htmlFor="float">Standard till float (R)</label>
+        <label htmlFor="float">Starting cash float (R) <span className="hint">the cash you keep in the till at the beginning of a shift</span></label>
         <input id="float" name="float" type="number" inputMode="decimal" step="0.01" min="0" defaultValue="500" />
         <label style={{ display: "flex", gap: 10, alignItems: "center", fontWeight: 400 }}>
           <input type="checkbox" name="demo" defaultChecked style={{ width: "auto" }} />
-          Add a sample dispensary menu (flower, pre-rolls, edibles, vapes and two pre-roll specials) so I can try a shift first. You can edit or remove them later.
+          Add sample products to try a shift first. You can edit or remove them later.
         </label>
         <div style={{ marginTop: 16 }}>
           <Submit>Create my shop</Submit>

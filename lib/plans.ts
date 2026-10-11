@@ -21,8 +21,8 @@ export const PLANS: { id: PlanId; name: string; price: number; blurb: string; fe
     id: "free",
     name: "Free",
     price: 0,
-    blurb: "Try it in one shop",
-    features: ["One shop, up to 15 products", "Shift counts and alerts in the app", "Last 7 days of shifts"],
+    blurb: "Try OnPoint in one shop",
+    features: ["One shop, up to 15 products", "Shift counts and items to review in the app", "The last 7 days of shifts"],
   },
   {
     id: "starter",
@@ -31,7 +31,7 @@ export const PLANS: { id: PlanId; name: string; price: number; blurb: string; fe
     blurb: "For one shop",
     features: [
       "Unlimited products",
-      "Email alert when a shift doesn’t tally",
+      "Nightly email when a shift closes",
       "Specials tallied separately",
       "Staff logins with manager sign-off",
       "90 days of history",
@@ -44,7 +44,7 @@ export const PLANS: { id: PlanId; name: string; price: number; blurb: string; fe
     blurb: "For a busy shop",
     features: [
       "Everything in Starter",
-      "Monthly report: what sells and when, stock to watch, and what to do next",
+      "Monthly report: what sells, when it sells, and what may need attention",
       "Compare each day with a usual day",
       "Full history",
     ],

@@ -42,6 +42,7 @@ function YesNo({ name, label, value, onChange }: { name: string; label: string; 
 export function StatementForm({ shiftId, questions }: { shiftId: string; questions: { unrung: string; stock_event: string; notes: string } }) {
   const [unrung, setUnrung] = useState("");
   const [stock, setStock] = useState("");
+  const [more, setMore] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok?: string; error?: string }>();
@@ -58,6 +59,7 @@ export function StatementForm({ shiftId, questions }: { shiftId: string; questio
   function submit(form: HTMLFormElement) {
     const fd = new FormData(form);
     fd.delete("camera");
+    fd.delete("more");
     photos.forEach((p) => fd.append("photos", p));
     start(async () => {
       const r = await submitStatement(undefined, fd);
@@ -70,20 +72,20 @@ export function StatementForm({ shiftId, questions }: { shiftId: string; questio
 
   return (
     <form className="sheet" onSubmit={(e) => { e.preventDefault(); submit(e.currentTarget); }}>
-      <h3 style={{ marginTop: 0 }}>Your end-of-shift statement</h3>
-      <p className="small muted" style={{ marginTop: 0 }}>Everyone on shift answers for themselves. The owner sees your answers and photos.</p>
+      <h3 style={{ marginTop: 0 }}>Shift questions</h3>
+      <p className="small muted" style={{ marginTop: 0 }}>Report anything unusual before you finish.</p>
       <input type="hidden" name="shift_id" value={shiftId} />
 
       <YesNo name="unrung" label={questions.unrung} value={unrung} onChange={setUnrung} />
-      {unrung === "yes" && <textarea name="unrung_detail" aria-label="What left without being rung up" placeholder="What, and how much?" required maxLength={1000} rows={2} />}
+      {unrung === "yes" && <textarea name="unrung_detail" aria-label="What left without being rung up" placeholder="What was given out, and how much?" required maxLength={1000} rows={2} />}
 
       <YesNo name="stock_event" label={questions.stock_event} value={stock} onChange={setStock} />
       {stock === "yes" && <textarea name="stock_event_detail" aria-label="What happened to the stock" placeholder="What happened?" required maxLength={1000} rows={2} />}
 
-      <label htmlFor="st-notes" style={{ marginTop: 12 }}>{questions.notes} <span className="hint">optional</span></label>
-      <textarea id="st-notes" name="notes" maxLength={1000} rows={2} />
+      <YesNo name="more" label={questions.notes} value={more} onChange={setMore} />
+      {more === "yes" && <textarea id="st-notes" name="notes" aria-label="What should the owner know" placeholder="What should the owner know?" required maxLength={1000} rows={2} />}
 
-      <label htmlFor="st-cam" style={{ marginTop: 12 }}>Photos <span className="hint">the jars on the scale you counted, and the cash drawer (up to {MAX})</span></label>
+      <label htmlFor="st-cam" style={{ marginTop: 12 }}>Photos <span className="hint">Take a clear photo of each scale reading and the cash drawer (up to {MAX}).</span></label>
       <input id="st-cam" name="camera" type="file" accept="image/*" capture="environment" multiple disabled={photos.length >= MAX}
         onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }} />
       {busy && <p className="small muted">Preparing photo…</p>}
@@ -99,12 +101,12 @@ export function StatementForm({ shiftId, questions }: { shiftId: string; questio
         </div>
       )}
 
-      <label htmlFor="st-pw" style={{ marginTop: 12 }}>Your password <span className="hint">confirms these answers are yours</span></label>
+      <label htmlFor="st-pw" style={{ marginTop: 12 }}>Confirm with your password.</label>
       <input id="st-pw" name="password" type="password" autoComplete="current-password" required />
 
       {result?.error && <p className="notice error" role="alert">{result.error}</p>}
-      <button type="submit" style={{ marginTop: 12, width: "100%" }} disabled={pending || busy || !unrung || !stock || photos.length === 0}>
-        {pending ? "Saving…" : "Confirm my statement"}
+      <button type="submit" style={{ marginTop: 12, width: "100%" }} disabled={pending || busy || !unrung || !stock || !more || photos.length === 0}>
+        {pending ? "Saving…" : "Save shift answers"}
       </button>
     </form>
   );

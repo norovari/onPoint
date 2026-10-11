@@ -32,7 +32,7 @@ export function InsightsReport({ data, businessName }: { data: Insights; busines
 
       {a.recommendations.length > 0 && (
         <>
-          <h2>What to do this month</h2>
+          <h2>What to check this month</h2>
           <ol className="lines" style={{ paddingLeft: 0, listStyle: "none" }}>
             {a.recommendations.map((r, i) => (
               <li key={i} className="line">
@@ -44,7 +44,7 @@ export function InsightsReport({ data, businessName }: { data: Insights; busines
         </>
       )}
 
-      <h2>What your customers buy</h2>
+      <h2>What customers buy</h2>
       <ul className="lines">
         {a.best.map((p) => (
           <li key={p.name} className="line">
@@ -110,12 +110,12 @@ export function InsightsReport({ data, businessName }: { data: Insights; busines
         </>
       )}
 
-      <h2>Stock and cash that didn’t tally</h2>
+      <h2>Stock and cash differences</h2>
       {a.differences.length === 0 && data.cash_short_shifts === 0 ? (
         <p className="notice ok">Everything tallied this month.</p>
       ) : (
         <>
-          <p className="small muted">These are things to look into, not proof of wrongdoing. Most come from weighing, deals not being recorded, or stock moved without a note.</p>
+          <p className="small muted">These are things to investigate, not proof that anyone did something wrong. Differences can come from weighing, unrecorded deals or stock moved without a note.</p>
           <ul className="lines">
             {a.differences.map((p) => (
               <li key={p.name} className="line" data-status="variance">

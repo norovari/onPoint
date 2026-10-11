@@ -47,7 +47,7 @@ export function ProductImport({ existing }: { existing: { name: string; sku: str
     <div className="sheet">
       <h3 style={{ marginTop: 0 }}>Upload your product list</h3>
       <p className="small muted" style={{ marginTop: 0 }}>
-        A CSV or Excel file with at least a name and a price for each product, any layout. Flower is priced per gram; everything else per unit. Products you already have are skipped.
+        Upload your product list in CSV or Excel format. Include each product’s name and price. Flower is priced per gram; other products are priced per unit. Existing products are skipped.
       </p>
       <input type="file" aria-label="Product list file" accept=".csv,.txt,.xlsx,.xls" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
       {err && <p className="notice error" role="alert">{err}</p>}

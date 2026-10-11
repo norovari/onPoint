@@ -36,7 +36,7 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
         a: (
           <ul>
             <li>A shift summary as soon as the shift closes: what tallied, what didn’t, and by how much. Print it or save it as a PDF from your browser.</li>
-            <li>An email to the owner when a shift closes, with what didn’t tally and everyone’s end-of-shift statements (Starter plan and up).</li>
+            <li>An email to the owner when a shift closes, with what needs review and everyone’s shift answers (Starter plan and up).</li>
             <li>A monthly report: what sells and when, stock to keep an eye on, and what to do next (Business plan).</li>
           </ul>
         ),
@@ -80,7 +80,7 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
     items: [
       {
         q: "How do I know what really happened on a shift when I’m not there?",
-        a: <p>At close, each person on shift answers three short questions on their phone: did anything leave without being rung up, did anything happen to stock, and is there anything you should know. They add photos of the jars on the scale and the cash drawer, and confirm with their own password, so the answers are on record under their name. You see every statement and photo on the shift, and in the nightly email.</p>,
+        a: <p>At close, each person on shift answers three short questions on their phone: was anything sold or given out without being recorded, was there any stock damage or spillage, and is there anything you need to know. They add photos of the jars on the scale and the cash drawer, and confirm with their own password, so the answers are on record under their name. You see every statement and photo on the shift, and in the nightly email.</p>,
       },
       {
         q: "Will my staff feel accused?",
@@ -88,7 +88,7 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
       },
       {
         q: "Who sees what?",
-        a: <p>Staff see their shop’s shifts, but the money figures only for shifts they worked. Managers and the owner see everything, including alerts and reports. Only people you add can see your shop.</p>,
+        a: <p>Staff see their shop’s shifts, but the money figures only for shifts they worked. Managers and the owner see everything, including items needing review and reports. Only people you add can see your shop.</p>,
       },
       {
         q: "Is there an app to install?",

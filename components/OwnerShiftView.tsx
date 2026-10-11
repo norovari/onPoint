@@ -38,8 +38,8 @@ export function OwnerShiftView({
 }) {
   const money = Boolean(recon.money_visible);
   const tabs = (money
-    ? [["alerts", "Alerts"], ["specials", "Today’s specials"], ["last", "Last shift stock"], ["now", "In stock now"], ["made", "What each product made"], ["next", "Stock for next shift"]]
-    : [["alerts", "Alerts"], ["last", "Last shift stock"], ["now", "In stock now"], ["next", "Stock for next shift"]]) as [string, string][];
+    ? [["alerts", "Needs review"], ["specials", "Today’s specials"], ["last", "Last shift’s stock"], ["now", "Stock on hand"], ["made", "Product earnings"], ["next", "Stock for next shift"]]
+    : [["alerts", "Needs review"], ["last", "Last shift’s stock"], ["now", "Stock on hand"], ["next", "Stock for next shift"]]) as [string, string][];
   const [tab, setTab] = useState(tabs[0][0]);
 
   const stock = recon.stock as any[];
@@ -68,12 +68,12 @@ export function OwnerShiftView({
           {money && (
             <div className="figures">
               <div className="figure"><div className="value">{formatZar(posNet)}</div><div className="label">Sold on the till</div></div>
-              <div className="figure"><div className="value" style={{ color: `var(--${missingTotal ? "variance" : "matched"})` }}>{formatZar(missingTotal)}</div><div className="label">Missing stock value</div></div>
+              <div className="figure"><div className="value" style={{ color: `var(--${missingTotal ? "variance" : "matched"})` }}>{formatZar(missingTotal)}</div><div className="label">Stock difference</div></div>
               <div className="figure"><div className="value" style={{ color: `var(--${recon.cash.status === "matched" ? "matched" : "variance"})` }}>{signedZar(recon.cash.variance)}</div><div className="label">Cash difference</div></div>
-              <div className="figure"><div className="value">{formatZar(specialTaken)}</div><div className="label">Taken on specials</div></div>
+              <div className="figure"><div className="value">{formatZar(specialTaken)}</div><div className="label">Specials sold</div></div>
             </div>
           )}
-          {openEx.length === 0 && <p className="notice ok"><strong>Stock and money tally.</strong> Nothing needs attention for this shift.</p>}
+          {openEx.length === 0 && <p className="notice ok"><strong>Everything tallied.</strong> Nothing to review.</p>}
           {exceptions.filter((e) => e.status !== "superseded").map((e) => {
             const isMoney = MONEY_TYPES.includes(e.exception_type);
             const unit = e.base_unit ?? "unit";
@@ -89,9 +89,9 @@ export function OwnerShiftView({
                   <span className="diff" data-status={tone} style={{ fontSize: 22 }}>{amount}</span>
                 </div>
                 <p className="small muted" style={{ margin: "4px 0 8px" }}>
-                  {e.exception_type === "low_stock" ? `Only ${formatQty(n(e.actual), unit)} left for the next shift. Warn level ${formatQty(n(e.expected), unit)}.`
-                    : e.exception_type === "went_into_minus" ? "The till sold more than was in stock. Usually a delivery came in and wasn’t logged."
-                    : e.expected !== null ? `Expected ${fmt(e.expected)}, found ${fmt(e.actual)}.${value ? ` Worth ${formatZar(value)} at your selling price.` : ""}` : ""}
+                  {e.exception_type === "low_stock" ? `Only ${formatQty(n(e.actual), unit)} left for the next shift. Your warning level is ${formatQty(n(e.expected), unit)}.`
+                    : e.exception_type === "went_into_minus" ? "The till recorded sales beyond the available stock. Check whether a delivery or stock change was missed."
+                    : e.expected !== null ? `Counted ${fmt(e.actual)} · Expected ${fmt(e.expected)}${value ? ` · Difference worth ${formatZar(value)} at your selling price` : ""}.` : ""}
                 </p>
                 {e.explanation && <p style={{ whiteSpace: "pre-wrap", margin: "0 0 8px" }}>{e.explanation}</p>}
                 {e.status === "resolved" ? <span className="status" data-status="matched">Resolved</span> : (
@@ -99,7 +99,7 @@ export function OwnerShiftView({
                     <ReasonFields id={e.id} label={"What happened?"} />
                     <div className="row" style={{ marginTop: 8, flexWrap: "wrap" }}>
                       <Submit className="quiet" name="status" value="explained">Save explanation</Submit>
-                      {canResolve && <Submit name="status" value="resolved">Fixed, close alert</Submit>}
+                      {canResolve && <Submit name="status" value="resolved">Mark as done</Submit>}
                     </div>
                   </ActionForm>
                 )}
@@ -114,7 +114,7 @@ export function OwnerShiftView({
           {specials.length === 0 ? <p className="muted">No specials were sold this shift.</p> : (
             <>
               <div className="figures">
-                <div className="figure"><div className="value">{formatZar(specialTaken)}</div><div className="label">Taken on specials{posNet ? ` (${Math.round((specialTaken / posNet) * 100)}% of the shift)` : ""}</div></div>
+                <div className="figure"><div className="value">{formatZar(specialTaken)}</div><div className="label">Specials sold{posNet ? ` (${Math.round((specialTaken / posNet) * 100)}% of the shift)` : ""}</div></div>
                 <div className="figure"><div className="value">{specials.reduce((a, s) => a + Number(s.units), 0)}</div><div className="label">Items out on specials</div></div>
                 <div className="figure"><div className="value" style={{ color: "var(--pending)" }}>{formatZar(specials.reduce((a, s) => a + Number(s.discount), 0))}</div><div className="label">Given away in discount</div></div>
                 <div className="figure"><div className="value">{usual === null ? "—" : signedZar(posNet - usual)}</div><div className="label">Compared with a usual day</div></div>
@@ -186,7 +186,7 @@ export function OwnerShiftView({
 
       {tab === "now" && (
         <>
-          <p className="muted small">What {closedBy || "staff"} counted at close, next to what should be there. Should have = last shift stock + deliveries − what the till sold − wastage.</p>
+          <p className="muted small">See what {closedBy || "staff"} counted at close and what should be left. Expected stock is based on the previous close, deliveries, recorded sales and stock changes.</p>
           <ul className="lines">
             {stock.map((s) => {
               const v = n(s.variance);
@@ -197,9 +197,9 @@ export function OwnerShiftView({
               return (
                 <li key={s.product_id} className="line" data-status={st}>
                   <span className="name">{s.name}</span>
-                  <span className="diff" data-status={st} style={{ fontSize: 20 }}>{notCounted ? "Not counted" : v === null ? "Not counted" : v === 0 ? "Tallies" : within ? "Within allowance" : signedQty(v, s.base_unit)}</span>
+                  <span className="diff" data-status={st} style={{ fontSize: 20 }}>{notCounted ? "Not counted" : v === null ? "Not counted" : v === 0 ? "Tallies" : within ? "Within your allowance" : signedQty(v, s.base_unit)}</span>
                   <span className="meta">
-                    {notCounted ? <>Not on this shift’s count list. Carried forward at {formatQty(s.expected_closing, s.base_unit)}</> : <>Counted {formatQty(s.counted_closing, s.base_unit)}, should have {formatQty(s.expected_closing, s.base_unit)}{within ? ` (${signedQty(v, s.base_unit)}, within your allowance)` : ""}</>}
+                    {notCounted ? <>Not checked tonight. Carried over at {formatQty(s.expected_closing, s.base_unit)}</> : <>Counted {formatQty(s.counted_closing, s.base_unit)} · Expected {formatQty(s.expected_closing, s.base_unit)}{within ? ` (${signedQty(v, s.base_unit)}, within your allowance)` : ""}</>}
                     {val ? `. Worth ${formatZar(val)}` : ""}{s.went_into_minus ? ". Went into minus" : ""}
                   </span>
                 </li>
@@ -224,15 +224,15 @@ export function OwnerShiftView({
               </li>
             ))}
           </ul>
-          <h2>Does the money tally?</h2>
+          <h2>Do the cash and card totals tally?</h2>
           <div className="sheet"><table className="working"><tbody>
-            <tr><td>Opening float</td><td>{formatZar(recon.cash.opening_float)}</td></tr>
+            <tr><td>Starting float</td><td>{formatZar(recon.cash.opening_float)}</td></tr>
             <tr><td>+ Cash sales{recon.cash.source === "till_report" ? " (till report)" : ""}</td><td>{formatZar(recon.cash.cash_sales)}</td></tr>
             {Number(recon.cash.cash_refunds) !== 0 && <tr><td>− Cash refunds</td><td>{formatZar(recon.cash.cash_refunds)}</td></tr>}
-            {Number(recon.cash.paid_out) !== 0 && <tr><td>− Paid out</td><td>{formatZar(recon.cash.paid_out)}</td></tr>}
-            {Number(recon.cash.removed) + Number(recon.cash.banked) !== 0 && <tr><td>− Removed or banked</td><td>{formatZar(Number(recon.cash.removed) + Number(recon.cash.banked))}</td></tr>}
-            {Number(recon.cash.paid_in) !== 0 && <tr><td>+ Paid in</td><td>{formatZar(recon.cash.paid_in)}</td></tr>}
-            <tr className="total"><td>Cash that should be in the till</td><td>{formatZar(recon.cash.expected)}</td></tr>
+            {Number(recon.cash.paid_out) !== 0 && <tr><td>− Cash paid out</td><td>{formatZar(recon.cash.paid_out)}</td></tr>}
+            {Number(recon.cash.removed) + Number(recon.cash.banked) !== 0 && <tr><td>− Cash removed or banked</td><td>{formatZar(Number(recon.cash.removed) + Number(recon.cash.banked))}</td></tr>}
+            {Number(recon.cash.paid_in) !== 0 && <tr><td>+ Cash added</td><td>{formatZar(recon.cash.paid_in)}</td></tr>}
+            <tr className="total"><td>Expected cash</td><td>{formatZar(recon.cash.expected)}</td></tr>
             <tr><td>Cash counted</td><td>{formatZar(recon.cash.counted)}</td></tr>
             <tr><td>Cash difference</td><td style={{ color: `var(--${recon.cash.status === "matched" ? "matched" : "variance"})` }}>{signedZar(recon.cash.variance)}</td></tr>
             {(recon.settlements as any[]).map((x) => (
@@ -240,8 +240,8 @@ export function OwnerShiftView({
                 <td style={{ color: `var(--${x.status === "matched" ? "matched" : x.status === "pending" ? "pending" : "variance"})` }}>{x.status === "pending" ? "Pending" : signedZar(x.variance)}</td></tr>
             ))}
           </tbody></table></div>
-          {missingTotal > 0 && <p className="small muted">The till and cash can match while stock still disappears, when a sale is never rung up or stock is taken. That’s why OnPoint also values the missing stock: {formatZar(missingTotal)} this shift.</p>}
-          {Number(recon.sales.unmapped_lines) > 0 && <p className="notice small">{recon.sales.unmapped_lines} till line(s) didn’t match a product code. Fix the codes in Settings.</p>}
+          {missingTotal > 0 && <p className="small muted">Cash and till sales can match even when stock is missing. This can happen when a sale isn’t recorded or stock leaves the shop. That’s why OnPoint checks stock too: {formatZar(missingTotal)} this shift.</p>}
+          {Number(recon.sales.unmapped_lines) > 0 && <p className="notice small">{recon.sales.unmapped_lines} till item(s) don’t match a product yet. Match them in Settings.</p>}
         </>
       )}
 

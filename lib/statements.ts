@@ -11,9 +11,9 @@ export const MAX_PHOTOS = 4;
 const MAX_BYTES = 3 * 1024 * 1024;
 
 export const QUESTIONS = {
-  unrung: "Did anything leave the shop tonight that wasn’t rung up (samples, extras, freebies)?",
-  stock_event: "Did anything happen to stock: spills, breakages, returns?",
-  notes: "Anything the owner should know about tonight?",
+  unrung: "Was anything sold or given out without being recorded?",
+  stock_event: "Was there any stock damage, spillage or other incident?",
+  notes: "Is there anything the owner needs to know?",
 } as const;
 
 // The person's own password stands in for a signature. Checked with a
@@ -28,7 +28,7 @@ export async function passwordMatches(email: string, password: string) {
 }
 
 export function checkPhotos(files: File[]) {
-  if (files.length === 0) return "Take at least one photo: the jar on the scale, or the cash drawer.";
+  if (files.length === 0) return "Take the required photos: the scale readings or the cash drawer.";
   if (files.length > MAX_PHOTOS) return `Up to ${MAX_PHOTOS} photos.`;
   for (const f of files) {
     if (!/^image\/(jpeg|png|webp)$/.test(f.type)) return "Photos must be pictures (JPEG or PNG).";
@@ -68,8 +68,8 @@ export type StatementRow = {
 export function statementText(s: StatementRow) {
   return [
     `${s.name ?? "Team member"}:`,
-    `  Anything not rung up? ${s.unrung ? `Yes: ${s.unrung_detail}` : "No"}`,
-    `  Anything happen to stock? ${s.stock_event ? `Yes: ${s.stock_event_detail}` : "No"}`,
+    `  Anything not recorded? ${s.unrung ? `Yes: ${s.unrung_detail}` : "No"}`,
+    `  Any stock problems? ${s.stock_event ? `Yes: ${s.stock_event_detail}` : "No"}`,
     s.notes ? `  Notes: ${s.notes}` : "",
     `  ${s.photos.length} photo${s.photos.length === 1 ? "" : "s"}`,
   ].filter(Boolean).join("\n");

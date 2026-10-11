@@ -13,7 +13,7 @@ export default function Pricing() {
       <main className="wrap">
         <h1>Pricing</h1>
         <p className="lede">
-          Every new shop gets {TRIAL_DAYS} days of the Business plan free, no card needed. After that, stay on Free or choose a plan. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} monthly payments are {LAUNCH_DISCOUNT.pct}% off.
+          Every new shop gets {TRIAL_DAYS} days of the Business plan free, with no card required. After that, stay on Free or choose a paid plan. Subscribe before your trial ends to get {LAUNCH_DISCOUNT.pct}% off your first {LAUNCH_DISCOUNT.months} monthly payments.
         </p>
         {PLANS.map((p) => (
           <div key={p.id} className="sheet">
@@ -30,7 +30,7 @@ export default function Pricing() {
             )}
           </div>
         ))}
-        <p className="muted small">Prices are in rand and include everything shown. Pay online by card, billed monthly. Cancel any time. Your plan runs to the end of the month you paid for.</p>
+        <p className="muted small">Prices are in rand and include the features listed. Pay monthly by card. Cancel any time. Your plan stays active until the end of the month you’ve paid for.</p>
         <Link href="/signup" className="button" style={{ width: "100%" }}>Start free</Link>
         <footer className="muted small" style={{ marginTop: 40, borderTop: "1px solid var(--rule)", paddingTop: 16 }}>
           {LEGAL_NAME}{CONTACT_EMAIL ? `. Questions: ${CONTACT_EMAIL}` : ""}. <Link href="/terms">Terms, privacy and refunds</Link>

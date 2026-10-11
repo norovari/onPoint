@@ -267,7 +267,7 @@ export async function submitClosing(_: ActionState, f: FormData): Promise<Action
   const { data: req } = await supabase.from("businesses").select("require_statement").eq("id", businessId).single();
   if (req?.require_statement) {
     const { data: mine } = await supabase.from("shift_statements").select("id").eq("shift_id", shiftId).eq("user_id", userId).maybeSingle();
-    if (!mine) return { error: "Give your end-of-shift statement first (the three questions above)." };
+    if (!mine) return { error: "Answer the shift questions first." };
   }
   const { error } = await supabase.rpc("submit_closing", {
     p_shift: shiftId,
@@ -304,7 +304,7 @@ export async function submitClosing(_: ActionState, f: FormData): Promise<Action
     });
   }
   revalidatePath(`/shifts/${shiftId}`);
-  return { ok: "Shift submitted for manager review." };
+  return { ok: "Shift submitted. Your manager can now review it." };
 }
 
 export async function recordSpecialSale(_: ActionState, f: FormData): Promise<ActionState> {
@@ -686,16 +686,16 @@ export async function submitStatement(_: ActionState, f: FormData): Promise<Acti
   const shiftId = str(f, "shift_id");
   const { data: shift } = await supabase.from("shifts").select("id, status, business_id").eq("id", shiftId).maybeSingle();
   if (!shift || shift.business_id !== businessId) return { error: "Shift not found." };
-  if (!["active", "correction_requested"].includes(shift.status)) return { error: "Statements are given while the shift is open." };
+  if (!["active", "correction_requested"].includes(shift.status)) return { error: "Shift answers can only be saved while the shift is open." };
   const { data: already } = await supabase.from("shift_statements").select("id").eq("shift_id", shiftId).eq("user_id", userId).maybeSingle();
-  if (already) return { error: "You’ve already given your statement for this shift." };
+  if (already) return { error: "You’ve already saved your shift answers." };
 
   const yes = (k: string) => { const v = str(f, k); return v === "yes" ? true : v === "no" ? false : null; };
   const unrung = yes("unrung"), stockEvent = yes("stock_event");
-  if (unrung === null || stockEvent === null) return { error: "Answer the first two questions with yes or no." };
+  if (unrung === null || stockEvent === null) return { error: "Answer the first two questions with Yes or No." };
   const unrungDetail = str(f, "unrung_detail").slice(0, 1000), stockDetail = str(f, "stock_event_detail").slice(0, 1000);
-  if (unrung && !unrungDetail) return { error: "Say what left the shop without being rung up." };
-  if (stockEvent && !stockDetail) return { error: "Say what happened to the stock." };
+  if (unrung && !unrungDetail) return { error: "Explain what was given out if you answered Yes." };
+  if (stockEvent && !stockDetail) return { error: "Explain what happened to the stock if you answered Yes." };
   const notes = str(f, "notes").slice(0, 1000);
 
   const photos = f.getAll("photos").filter((x): x is File => x instanceof File && x.size > 0);
@@ -705,14 +705,14 @@ export async function submitStatement(_: ActionState, f: FormData): Promise<Acti
   const password = String(f.get("password") ?? "");
   const { data: me } = await supabase.auth.getUser();
   if (!password || !me.user?.email || !(await passwordMatches(me.user.email, password))) {
-    return { error: "That password isn’t right. Use the password you sign in with." };
+    return { error: "Your password is incorrect. Use the password you sign in with." };
   }
 
   let paths: string[];
   try {
     paths = await storePhotos(`${businessId}/${shiftId}/${userId}`, photos);
   } catch {
-    return { error: "The photos didn’t upload. Check your signal and try again." };
+    return { error: "The photos couldn’t upload. Check your connection and try again." };
   }
   const { error } = await createServiceClient().from("shift_statements").insert({
     business_id: businessId, shift_id: shiftId, user_id: userId,
@@ -720,9 +720,9 @@ export async function submitStatement(_: ActionState, f: FormData): Promise<Acti
     stock_event: stockEvent, stock_event_detail: stockEvent ? stockDetail : null,
     notes: notes || null, photos: paths,
   });
-  if (error) return { error: error.code === "23505" ? "You’ve already given your statement for this shift." : "Couldn’t save your statement. Try again." };
+  if (error) return { error: error.code === "23505" ? "You’ve already saved your shift answers." : "Couldn’t save your shift answers. Try again." };
   revalidatePath(`/shifts/${shiftId}`);
-  return { ok: "Statement saved. Thank you." };
+  return { ok: "Your shift answers have been saved." };
 }
 
 export async function setRequireStatement(_: ActionState, f: FormData): Promise<ActionState> {

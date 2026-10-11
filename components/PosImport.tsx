@@ -62,7 +62,7 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
         const { readSheet } = await import("read-excel-file/browser");
         data = (await readSheet(f)).map((r) => r.map(cellText));
       } else if (/\.xls$/i.test(f.name)) {
-        setReadError("This is an old Excel file (.xls). Open it and save it as .xlsx or CSV, then choose it again.");
+        setReadError("This is an older Excel file (.xls). Save it as .xlsx or CSV, then upload it again.");
         return;
       } else {
         const text = (await f.text()).replace(/^\uFEFF/, "");
@@ -75,7 +75,7 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
       setRows(data); setHeader(h); setMapping(g.mapping); setShowMap(!g.sure);
       relink(g.mapping, data.slice(h + 1));
     } catch {
-      setReadError("This file couldn't be read. Save it from your till as CSV or Excel (.xlsx) and try again.");
+      setReadError("We couldn’t read this file. Save it as CSV or Excel (.xlsx) from your till and try again.");
     }
   }
 
@@ -117,7 +117,7 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
   return (
     <div>
       <label htmlFor="pos-file">
-        Your till’s sales export <span className="hint">CSV or Excel, straight from the till. Any layout.</span>
+        Upload today’s till sales <span className="hint">Upload the sales report from your till in CSV or Excel format.</span>
       </label>
       <input id="pos-file" type="file" accept=".csv,.txt,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
       {readError && <p className="notice error" role="alert">{readError}</p>}
@@ -132,7 +132,7 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
             </p>
           ) : (
             <div className="sheet" style={{ marginTop: 12 }}>
-              <p style={{ marginTop: 0 }}><strong>Which column is which?</strong> We’ll remember this for next time.</p>
+              <p style={{ marginTop: 0 }}><strong>Match the columns in your file.</strong> OnPoint will remember your choices for next time.</p>
               {FIELDS.map((f) => (
                 <div key={f.key} className="row" style={{ alignItems: "end", marginBottom: 6 }}>
                   <div>
@@ -145,7 +145,7 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
                   <div className="small muted" style={{ paddingBottom: 10 }}>{sample(mapping[f.key]) && `e.g. ${sample(mapping[f.key])}`}</div>
                 </div>
               ))}
-              {missing && <p className="notice" role="status">Choose the product (name or code), the quantity, and the line total or unit price.</p>}
+              {missing && <p className="notice" role="status">Choose the product, quantity and line total or unit price.</p>}
               {!missing && <button type="button" onClick={() => setShowMap(false)}>Done</button>}
             </div>
           )}
@@ -153,7 +153,7 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
           {/* Items not yet linked to a product */}
           {!missing && open.length > 0 && (
             <div className="sheet" style={{ marginTop: 12 }}>
-              <p style={{ marginTop: 0 }}><strong>Which product is this?</strong> {open.length === 1 ? "1 item in the file doesn’t" : `${open.length} items in the file don’t`} match a product yet. We’ll remember your choice.</p>
+              <p style={{ marginTop: 0 }}><strong>Which OnPoint product matches this item?</strong> {open.length === 1 ? "1 item still needs" : `${open.length} items still need`} matching. We’ll remember your choices.</p>
               <ul className="lines">
                 {open.slice(0, 40).map((it) => (
                   <li key={it.key} className="line">
@@ -165,7 +165,7 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
                     }}>
                       <option value="">Choose…</option>
                       {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      <option value={SKIP}>Not stock we count (e.g. papers, lighters)</option>
+                      <option value={SKIP}>Not stock we count</option>
                     </select>
                   </li>
                 ))}
@@ -177,8 +177,8 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
           {/* Fixed bags on weighed products */}
           {!missing && bagItems.length > 0 && (
             <details className="sheet" style={{ marginTop: 12 }} open={bagItems.some((it) => layout.sizes?.[it.key] === undefined && sizes[it.key] !== undefined)}>
-              <summary><strong>Grams in each sale</strong> <span className="small muted">for flower sold in fixed bags</span></summary>
-              <p className="small muted">If the till sells “2g for R50”, each sale is 2g, so 3 sold means 6g left the jar. Leave as 1 if the till already records grams. We’ll remember this.</p>
+              <summary><strong>Grams in each bag</strong> <span className="small muted">for flower sold in fixed bags</span></summary>
+              <p className="small muted">If your till records “2 g for R50”, enter 2 g. Three sales then count as 6 g sold. Leave as 1 if your till already records grams.</p>
               <ul className="lines">
                 {bagItems.map((it) => (
                   <li key={it.key} className="line">
@@ -199,26 +199,26 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
           {!missing && built && (
             <div className="sheet" style={{ background: "var(--paper)", marginTop: 12 }}>
               <p style={{ margin: 0 }}>
-                {built.lines.length} sales lines. Sales {formatZar(built.totals.sales)}{Number(built.totals.refunds) ? `, refunds ${formatZar(built.totals.refunds)}` : ""}.
+                {built.lines.length} sales lines · {formatZar(built.totals.sales)} sales{Number(built.totals.refunds) ? `, refunds ${formatZar(built.totals.refunds)}` : ""}.
                 {built.hasPayment && Object.keys(built.byMethod).length > 0 && <> ({Object.entries(built.byMethod).map(([m, v]) => `${m} ${formatZar(v)}`).join(", ")})</>}
-                {built.skipped > 0 && <> {built.skipped} non-stock line{built.skipped === 1 ? "" : "s"} left out.</>}
+                {built.skipped > 0 && <> · {built.skipped} non-stock line{built.skipped === 1 ? "" : "s"} skipped</>}
               </p>
               {built.errors.length > 0 && (
                 <details style={{ marginTop: 6 }}>
-                  <summary className="small">{built.errors.length} row{built.errors.length === 1 ? "" : "s"} couldn’t be read and will be left out</summary>
+                  <summary className="small">{built.errors.length} row{built.errors.length === 1 ? "" : "s"} couldn’t be read</summary>
                   <ul className="small" style={{ paddingLeft: 18 }}>{built.errors.slice(0, 10).map((e) => <li key={e}>{e}</li>)}</ul>
                 </details>
               )}
-              {open.length > 0 && <p className="small" style={{ color: "var(--variance)" }}>{open.length} item{open.length === 1 ? " isn't" : "s aren't"} linked yet. They’ll import but show as “not matched”.</p>}
+              {open.length > 0 && <p className="small" style={{ color: "var(--variance)" }}>{open.length} item{open.length === 1 ? "" : "s"} still need{open.length === 1 ? "s" : ""} matching. They’ll upload but show as “not matched”.</p>}
               {!built.hasPayment && (
                 <div className="row" style={{ marginTop: 8 }}>
-                  <div><label htmlFor="imp-cash">Cash sales on the till report (R)</label><input id="imp-cash" type="number" inputMode="decimal" min="0" step="0.01" value={cash} onChange={(e) => setCash(e.target.value)} /></div>
+                  <div><label htmlFor="imp-cash">Cash sales (R)</label><input id="imp-cash" type="number" inputMode="decimal" min="0" step="0.01" value={cash} onChange={(e) => setCash(e.target.value)} /></div>
                   <div><label htmlFor="imp-card">Card sales (R)</label><input id="imp-card" type="number" inputMode="decimal" min="0" step="0.01" value={card} onChange={(e) => setCard(e.target.value)} /></div>
                 </div>
               )}
-              {!built.hasPayment && <p className="small muted">This file doesn’t say how each sale was paid, so enter the cash and card totals from the till’s end-of-day report.</p>}
+              {!built.hasPayment && <p className="small muted">This file doesn’t show how customers paid. Enter the cash and card totals from your till’s end-of-day report.</p>}
               <button type="button" style={{ marginTop: 10 }} disabled={pending || built.lines.length === 0} onClick={doImport}>
-                {pending ? "Importing…" : "Import sales"}
+                {pending ? "Uploading…" : "Upload sales"}
               </button>
             </div>
           )}
