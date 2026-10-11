@@ -192,6 +192,19 @@ describe("trial emails", () => {
   });
 });
 
+describe("monthly report insights", () => {
+  test("Business plan owners get figures; Free plan doesn't", async () => {
+    await w.db.query(`update subscriptions set plan = 'business', status = 'active', current_period_end = now() + interval '1 year' where business_id = $1`, [w.bizB]);
+    const r = await w.db.as(U.ownerB, (q) => val(q, `select public.monthly_insights($1, 30)`, [w.bizB]));
+    expect(r).toMatchObject({ days: 30, shifts_closed: expect.any(Number) });
+    expect(r.by_dow).toHaveLength(7);
+    expect(Array.isArray(r.products)).toBe(true);
+    await expect(w.db.as(U.ownerA, (q) => q.query(`select public.monthly_insights($1, 30)`, [w.bizB]))).rejects.toThrow(/owners and managers/);
+    await w.db.query(`update subscriptions set status = 'cancelled' where business_id = $1`, [w.bizB]);
+    await expect(w.db.as(U.ownerB, (q) => q.query(`select public.monthly_insights($1, 30)`, [w.bizB]))).rejects.toThrow(/Business plan/);
+  });
+});
+
 describe("specials, minus and low-stock alerts, till totals", () => {
   test("a special that gives away an extra item raises an alert; minus and low stock too", async () => {
     // Business B is on an active plan from the EFT test
