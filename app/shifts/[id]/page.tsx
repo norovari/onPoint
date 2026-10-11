@@ -4,6 +4,8 @@ import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { PosImport } from "@/components/PosImport";
+import { StatementForm } from "@/components/StatementForm";
+import { QUESTIONS, photoLinks, type StatementRow } from "@/lib/statements";
 import { FillLast } from "@/components/FillLast";
 import { OwnerShiftView, type ShiftException } from "@/components/OwnerShiftView";
 import {
@@ -99,6 +101,15 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   }
   const closing = latest("closing");
   const workedIt = [shift.opened_by, shift.closed_by].includes(s.userId);
+  const { data: stRows } = await supabase.from("shift_statements")
+    .select("user_id, unrung, unrung_detail, stock_event, stock_event_detail, notes, photos, created_at, profiles(full_name)")
+    .eq("shift_id", id).order("created_at");
+  const statements: StatementRow[] = (stRows ?? []).map((r) => ({ ...(r as unknown as StatementRow), name: (r.profiles as unknown as { full_name: string } | null)?.full_name || "Team member" }));
+  let links = new Map<string, string>();
+  try { links = await photoLinks(statements.flatMap((x) => x.photos)); } catch { /* photos unavailable */ }
+  const myStatement = statements.some((x) => x.user_id === s.userId);
+  const { data: bizSt } = await supabase.from("businesses").select("require_statement").eq("id", s.businessId).single();
+  const askStatement = bizSt?.require_statement !== false;
   const canShare = manager || shift.opened_by === s.userId;
   const { data: teamRows } = canShare && status === "active"
     ? await supabase.from("memberships").select("user_id, profiles(full_name)").eq("business_id", s.businessId).eq("active", true)
@@ -430,6 +441,8 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
           )}
           <CountSheet shiftId={id} type="closing" products={closingProducts} counts={closing} needsReason={status === "correction_requested"} reasons={closingTags} />
 
+          {askStatement && !myStatement && <StatementForm shiftId={id} questions={QUESTIONS} />}
+          {askStatement && myStatement && <p className="notice ok">Your end-of-shift statement is saved.</p>}
           <ActionForm action={submitClosing} hidden={{ shift_id: id }} className="sheet">
             <label htmlFor="counted_cash">Cash counted in the till (R)</label>
             <input id="counted_cash" name="counted_cash" type="number" inputMode="decimal" step="0.01" min="0" required
@@ -465,6 +478,35 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       {/* ---------------- Review / approved ---------------- */}
       {showRecon && recon && (status !== "correction_requested" || manager) && (
         <OwnerShiftView recon={recon} exceptions={exceptions} prices={prices} canResolve={manager} closedBy={closer ?? ""} compareAllowed={compareAllowed} />
+      )}
+
+      {statements.length > 0 && (
+        <section aria-labelledby="st-h">
+          <h2 id="st-h">End-of-shift statements</h2>
+          <p className="small muted" style={{ marginTop: -4 }}>Each confirmed with the person’s own password.</p>
+          {statements.map((st) => (
+            <div key={st.user_id} className="sheet">
+              <p style={{ margin: 0 }}><strong>{st.user_id === s.userId ? "You" : st.name}</strong> <span className="small muted">{new Date(st.created_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" })}</span></p>
+              <dl className="small" style={{ margin: "8px 0" }}>
+                <dt style={{ fontWeight: 700 }}>Anything not rung up?</dt>
+                <dd style={{ margin: "0 0 6px" }}>{st.unrung ? `Yes: ${st.unrung_detail}` : "No"}</dd>
+                <dt style={{ fontWeight: 700 }}>Anything happen to stock?</dt>
+                <dd style={{ margin: "0 0 6px" }}>{st.stock_event ? `Yes: ${st.stock_event_detail}` : "No"}</dd>
+                {st.notes && (<><dt style={{ fontWeight: 700 }}>Notes</dt><dd style={{ margin: 0 }}>{st.notes}</dd></>)}
+              </dl>
+              {st.photos.length > 0 && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {st.photos.map((ph, i) => links.get(ph) ? (
+                    <a key={ph} href={links.get(ph)} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={links.get(ph)} alt={`Photo ${i + 1} from ${st.name}`} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 6, border: "1px solid var(--rule)" }} />
+                    </a>
+                  ) : null)}
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
       )}
 
       {status === "closing_submitted" && manager && (

@@ -79,6 +79,10 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
     group: "Your team",
     items: [
       {
+        q: "How do I know what really happened on a shift when I’m not there?",
+        a: <p>At close, each person on shift answers three short questions on their phone: did anything leave without being rung up, did anything happen to stock, and is there anything you should know. They add photos of the jars on the scale and the cash drawer, and confirm with their own password, so the answers are on record under their name. You see every statement and photo on the shift, and in the nightly email.</p>,
+      },
+      {
         q: "Will my staff feel accused?",
         a: <p>OnPoint shows differences, not blame. When something doesn’t tally, staff pick a likely reason (a counting mistake, spillage, a staff sample, a delivery not logged) and can add a note. You decide what happens next. Most differences turn out to be honest mistakes, and catching them early stops them growing.</p>,
       },

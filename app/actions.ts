@@ -9,6 +9,8 @@ import { createClient, requireSession } from "@/lib/supabase/server";
 import type { ParsedLine } from "@/lib/pos/csv";
 import { sha256Hex } from "@/lib/pos/csv";
 import { notifyAdmin, sendShiftAlert } from "@/lib/notify";
+import { checkPhotos, passwordMatches, statementText, storePhotos, type StatementRow } from "@/lib/statements";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -252,7 +254,7 @@ export async function importPos(input: {
 }
 
 export async function submitClosing(_: ActionState, f: FormData): Promise<ActionState> {
-  const { supabase, businessName, businessId } = await requireSession();
+  const { supabase, businessName, businessId, userId } = await requireSession();
   const shiftId = str(f, "shift_id");
   const cash = money(str(f, "counted_cash"));
   if (cash === null) return { error: "Count the cash in the till and enter the total." };
@@ -262,6 +264,11 @@ export async function submitClosing(_: ActionState, f: FormData): Promise<Action
   const checklist = Object.fromEntries(
     ["till_closed", "fridges_ok", "keys_returned", "deliveries_filed"].map((k) => [k, f.get(k) === "on"]),
   );
+  const { data: req } = await supabase.from("businesses").select("require_statement").eq("id", businessId).single();
+  if (req?.require_statement) {
+    const { data: mine } = await supabase.from("shift_statements").select("id").eq("shift_id", shiftId).eq("user_id", userId).maybeSingle();
+    if (!mine) return { error: "Give your end-of-shift statement first (the three questions above)." };
+  }
   const { error } = await supabase.rpc("submit_closing", {
     p_shift: shiftId,
     p_counted_cash: cash,
@@ -279,13 +286,21 @@ export async function submitClosing(_: ActionState, f: FormData): Promise<Action
     .eq("status", "open")
     .neq("severity", "info");
   const { data: plan } = await supabase.rpc("business_plan", { p_business: businessId });
-  if (open?.length && (plan as { plan: string } | null)?.plan !== "free") {
+  let statements: string[] = [];
+  try {
+    const { data: st } = await createServiceClient()
+      .from("shift_statements").select("user_id, unrung, unrung_detail, stock_event, stock_event_detail, notes, photos, created_at, profiles(full_name)")
+      .eq("shift_id", shiftId).order("created_at");
+    statements = (st ?? []).map((r) => statementText({ ...(r as unknown as StatementRow), name: (r.profiles as unknown as { full_name: string } | null)?.full_name || undefined }));
+  } catch { /* email still goes without statements */ }
+  if ((open?.length || statements.length) && (plan as { plan: string } | null)?.plan !== "free") {
     const { data: recipients } = await supabase.rpc("shift_alert_recipients", { p_shift: shiftId });
     await sendShiftAlert({
       to: ((recipients ?? []) as { email: string }[]).map((r) => r.email),
       businessName,
       shiftId,
-      problems: open.length,
+      problems: open?.length ?? 0,
+      statements,
     });
   }
   revalidatePath(`/shifts/${shiftId}`);
@@ -663,4 +678,57 @@ export async function setCounters(_: ActionState, f: FormData): Promise<ActionSt
   if (error) return { error: friendly(error) };
   revalidatePath(`/shifts/${shiftId}`);
   return { ok: users.length ? `Shared between ${users.length} ${users.length === 1 ? "person" : "people"}.` : "Sharing switched off." };
+}
+
+// End-of-shift statement: three answers, photos, and the person's own password
+export async function submitStatement(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase, userId, businessId } = await requireSession();
+  const shiftId = str(f, "shift_id");
+  const { data: shift } = await supabase.from("shifts").select("id, status, business_id").eq("id", shiftId).maybeSingle();
+  if (!shift || shift.business_id !== businessId) return { error: "Shift not found." };
+  if (!["active", "correction_requested"].includes(shift.status)) return { error: "Statements are given while the shift is open." };
+  const { data: already } = await supabase.from("shift_statements").select("id").eq("shift_id", shiftId).eq("user_id", userId).maybeSingle();
+  if (already) return { error: "You’ve already given your statement for this shift." };
+
+  const yes = (k: string) => { const v = str(f, k); return v === "yes" ? true : v === "no" ? false : null; };
+  const unrung = yes("unrung"), stockEvent = yes("stock_event");
+  if (unrung === null || stockEvent === null) return { error: "Answer the first two questions with yes or no." };
+  const unrungDetail = str(f, "unrung_detail").slice(0, 1000), stockDetail = str(f, "stock_event_detail").slice(0, 1000);
+  if (unrung && !unrungDetail) return { error: "Say what left the shop without being rung up." };
+  if (stockEvent && !stockDetail) return { error: "Say what happened to the stock." };
+  const notes = str(f, "notes").slice(0, 1000);
+
+  const photos = f.getAll("photos").filter((x): x is File => x instanceof File && x.size > 0);
+  const bad = checkPhotos(photos);
+  if (bad) return { error: bad };
+
+  const password = String(f.get("password") ?? "");
+  const { data: me } = await supabase.auth.getUser();
+  if (!password || !me.user?.email || !(await passwordMatches(me.user.email, password))) {
+    return { error: "That password isn’t right. Use the password you sign in with." };
+  }
+
+  let paths: string[];
+  try {
+    paths = await storePhotos(`${businessId}/${shiftId}/${userId}`, photos);
+  } catch {
+    return { error: "The photos didn’t upload. Check your signal and try again." };
+  }
+  const { error } = await createServiceClient().from("shift_statements").insert({
+    business_id: businessId, shift_id: shiftId, user_id: userId,
+    unrung, unrung_detail: unrung ? unrungDetail : null,
+    stock_event: stockEvent, stock_event_detail: stockEvent ? stockDetail : null,
+    notes: notes || null, photos: paths,
+  });
+  if (error) return { error: error.code === "23505" ? "You’ve already given your statement for this shift." : "Couldn’t save your statement. Try again." };
+  revalidatePath(`/shifts/${shiftId}`);
+  return { ok: "Statement saved. Thank you." };
+}
+
+export async function setRequireStatement(_: ActionState, f: FormData): Promise<ActionState> {
+  const { supabase, businessId } = await requireSession();
+  const { error } = await supabase.rpc("set_require_statement", { p_business: businessId, p_on: f.get("require_statement") === "on" });
+  if (error) return { error: friendly(error) };
+  revalidatePath("/settings");
+  return { ok: "Saved." };
 }

@@ -1,7 +1,7 @@
 import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
-import { addMember, addProduct, addSpecial, deactivateMember, setCountSettings, setProductOptions, setSalesSource, toggleSpecial, updateTolerances } from "@/app/actions";
+import { addMember, addProduct, addSpecial, deactivateMember, setCountSettings, setProductOptions, setRequireStatement, setSalesSource, toggleSpecial, updateTolerances } from "@/app/actions";
 import { formatZar } from "@/lib/calculations";
 import { ProductImport } from "@/components/ProductImport";
 import { CATEGORIES } from "@/lib/products/import";
@@ -28,7 +28,7 @@ export default async function Settings() {
     isManager(s.role)
       ? supabase.from("memberships").select("user_id, role, active, profiles(full_name)").eq("business_id", s.businessId)
       : Promise.resolve({ data: [] as never[] }),
-    supabase.from("businesses").select("cash_tolerance, stock_tolerance_pct, sales_source, count_mode, spot_per_shift, full_count_days").eq("id", s.businessId).single(),
+    supabase.from("businesses").select("cash_tolerance, stock_tolerance_pct, sales_source, count_mode, spot_per_shift, full_count_days, require_statement").eq("id", s.businessId).single(),
     owner ? supabase.from("subscriptions").select("plan, status, current_period_end").eq("business_id", s.businessId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
@@ -216,6 +216,15 @@ export default async function Settings() {
               <div><label htmlFor="c-per">Products per shift</label><input id="c-per" name="spot_per_shift" type="number" min="3" max="200" defaultValue={biz.spot_per_shift ?? 12} /></div>
               <div><label htmlFor="c-days">Check every product at least every … days</label><input id="c-days" name="full_count_days" type="number" min="1" max="60" defaultValue={biz.full_count_days ?? 7} /></div>
             </div>
+            <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
+          </ActionForm>
+
+          <h2>End-of-shift statements</h2>
+          <ActionForm action={setRequireStatement} className="sheet">
+            <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>
+              <input type="checkbox" name="require_statement" defaultChecked={biz.require_statement !== false} style={{ width: "auto", marginTop: 4 }} />
+              <span><strong>Ask for a statement at close.</strong> Before closing, each person answers three short questions (anything not rung up, anything happen to stock, anything you should know), adds photos of the jars on the scale and the cash drawer, and confirms with their own password. You see it on the shift and in the nightly email.</span>
+            </label>
             <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
           </ActionForm>
 
