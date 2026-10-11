@@ -2,9 +2,10 @@
 
 // Open demo: a sample shift with the visitor's business name on it.
 // Same sums as the real app, worked out in the browser. Nothing is saved.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LAUNCH_DISCOUNT, PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { SampleReport } from "@/components/SampleReport";
 
 type Unit = "g" | "each";
 interface Product { id: string; group: string; name: string; unit: Unit; price: number; last: number; received: number; normal: number; special: number; counted: number | null; low: number }
@@ -113,7 +114,7 @@ function alertsFor(c: Calc, closedBy: string): Alert[] {
 }
 
 const groups = <T extends { group: string }>(rows: T[]) => [...new Set(rows.map((r) => r.group))].map((g) => [g, rows.filter((r) => r.group === g)] as const);
-const TABS = [["alerts", "Alerts"], ["specials", "Today’s specials"], ["last", "Last shift stock"], ["now", "In stock now"], ["made", "What each product made"], ["next", "Stock for next shift"]] as const;
+const TABS = [["alerts", "Alerts"], ["specials", "Today’s specials"], ["last", "Last shift stock"], ["now", "In stock now"], ["made", "What each product made"], ["next", "Stock for next shift"], ["report", "Monthly report"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function Demo({ businessName }: { businessName: string }) {
@@ -127,6 +128,11 @@ export default function Demo({ businessName }: { businessName: string }) {
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  // A link ending in #report opens the sample monthly report straight away
+  useEffect(() => {
+    const h = window.location.hash.slice(1);
+    if (TABS.some(([k]) => k === h)) setTab(h as Tab);
+  }, []);
 
   const base = useMemo(() => calc(products, 0, cardMachine), [products, cardMachine]);
   const cash = cashCounted ?? base.cashShould - 110; // sample: R110 short
@@ -338,6 +344,8 @@ export default function Demo({ businessName }: { businessName: string }) {
               </>
             )}
 
+            {tab === "report" && <SampleReport businessName={businessName} />}
+
             {tab === "next" && (
               <>
                 <p className="muted small">What the next shift starts with. Their opening count is checked against these numbers.</p>
@@ -380,6 +388,7 @@ export default function Demo({ businessName }: { businessName: string }) {
           <h2 style={{ marginTop: 0 }}>Use OnPoint at {businessName}</h2>
           <p>{TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe within {LAUNCH_DISCOUNT.hours} hours of signing up and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
           <Link href={signup} className="button" style={{ width: "100%" }}>Start free</Link>
+          {tab !== "report" && <button type="button" className="quiet" style={{ width: "100%", marginTop: 10 }} onClick={() => { setView("owner"); setTab("report"); window.scrollTo(0, 0); }}>See a sample monthly report</button>}
           <p className="small muted" style={{ marginBottom: 0 }}><button type="button" className="quiet" style={{ marginTop: 10 }} onClick={() => { setProducts(freshProducts()); setCashCounted(null); setCardMachine(TILL_CARD); setFixed({}); setBanner(null); setView("owner"); setTab("alerts"); }}>Start the demo again</button></p>
         </div>
       </main>

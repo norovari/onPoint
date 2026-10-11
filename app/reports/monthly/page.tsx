@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import { requireSession } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { formatQty, formatZar } from "@/lib/calculations";
+import { SampleReport } from "@/components/SampleReport";
 
 export const metadata = { title: "Monthly report" };
 
@@ -22,6 +23,8 @@ export default async function Monthly() {
           <p>See which products go missing most over the month, what it’s worth, which shifts the differences happen on, and how much cash came up short.</p>
           <Link href="/billing" className="button">See plans</Link>
         </div>
+        <h2>What it looks like</h2>
+        <SampleReport businessName={s.businessName} note="This is what your report would look like on the Business plan. The numbers are made up." />
       </Shell>
     );
   }
@@ -76,6 +79,15 @@ export default async function Monthly() {
   const products = [...byProduct.values()].sort((a, b) => b.value.comparedTo(a.value));
   const missingTotal = products.reduce((a, p) => a.plus(p.value), new Decimal(0));
   const closed = (shifts ?? []).filter((sh) => sh.status !== "opening" && sh.status !== "active").length;
+
+  if (closed === 0) {
+    return (
+      <Shell businessName={s.businessName}>
+        <h1>Monthly report</h1>
+        <SampleReport businessName={s.businessName} note="Your own report fills in as you close shifts. Until then, here's a sample with made-up numbers." />
+      </Shell>
+    );
+  }
 
   return (
     <Shell businessName={s.businessName}>
