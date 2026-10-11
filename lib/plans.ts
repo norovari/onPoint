@@ -44,7 +44,7 @@ export const PLANS: { id: PlanId; name: string; price: number; blurb: string; fe
     blurb: "For a busy shop",
     features: [
       "Everything in Starter",
-      "Monthly report: what goes missing most, and on which shifts",
+      "Monthly report: what sells and when, stock to watch, and what to do next",
       "Compare each day with a usual day",
       "Full history",
     ],

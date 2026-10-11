@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LAUNCH_DISCOUNT, PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { SampleReport } from "@/components/SampleReport";
+import { PlanCards } from "@/components/PlanCards";
 
 type Unit = "g" | "each";
 interface Product { id: string; group: string; name: string; unit: Unit; price: number; last: number; received: number; normal: number; special: number; counted: number | null; low: number }
@@ -173,11 +174,11 @@ export default function Demo({ businessName }: { businessName: string }) {
   return (
     <>
       <div style={{ background: "var(--ink)", color: "var(--paper)", fontSize: 14, padding: "8px 16px", textAlign: "center" }}>
-        Sample shift with made-up figures. Nothing is saved. <Link href={signup} style={{ color: "var(--paper)", fontWeight: 700 }}>Start free with your own stock</Link>
+        Sample shift with made-up figures. <a href="#prices" style={{ color: "var(--paper)", fontWeight: 700 }}>See prices</a> · <Link href={signup} style={{ color: "var(--paper)", fontWeight: 700 }}>Start free</Link>
       </div>
       <header className="topbar">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>On<b>Point</b></Link>
-        <nav className="nav"><Link href="/pricing">Pricing</Link><Link href="/login">Sign in</Link></nav>
+        <nav className="nav"><a href="#prices">Prices</a><Link href="/login">Sign in</Link></nav>
       </header>
       <main className="wrap">
         <h1 style={{ marginTop: 8 }}>{businessName}</h1>
@@ -383,6 +384,8 @@ export default function Demo({ businessName }: { businessName: string }) {
             </div>
           </form>
         )}
+
+        <PlanCards signup={signup} name={businessName === "Your dispensary" ? "" : businessName} />
 
         <div className="sheet" style={{ marginTop: 28, borderWidth: 2 }}>
           <h2 style={{ marginTop: 0 }}>Use OnPoint at {businessName}</h2>

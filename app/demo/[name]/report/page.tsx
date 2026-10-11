@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SampleReport } from "@/components/SampleReport";
+import { PlanCards } from "@/components/PlanCards";
 import { PLANS, TRIAL_DAYS, LAUNCH_DISCOUNT } from "@/lib/plans";
 
 // Sample monthly report on its own page: /demo/The-Urb-Tribe/report
@@ -24,10 +25,11 @@ export default async function SampleReportPage({ params }: Props) {
   const name = businessName(slug) || "Your dispensary";
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 48 }}>
-      <p className="small"><Link href={`/demo/${slug}`}>← Back to the demo shift</Link></p>
+      <p className="small"><Link href={`/demo/${slug}`}>← Back to the demo shift</Link> · <a href="#prices">See prices</a></p>
       <h1>{name}</h1>
       <p className="muted" style={{ marginTop: -8 }}>Monthly report</p>
       <SampleReport businessName={name} />
+      <PlanCards signup={`/signup?b=${encodeURIComponent(name)}`} name={name} />
       <div className="sheet" style={{ marginTop: 24 }}>
         <h2 style={{ marginTop: 0 }}>Get this for {name}</h2>
         <p>{TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
