@@ -56,17 +56,17 @@ describe("plans and billing", () => {
 
   test("subscribing within 24 hours: 20% off the first 3 months, then full price", async () => {
     const inv = await w.db.as(U.ownerA, (q) => val(q, `select public.billing_create_invoice($1, 'starter', 'card')`, [w.bizA]));
-    expect(inv).toMatchObject({ list_amount: 299, discount_pct: 20, amount: 239.2, status: "pending" });
+    expect(inv).toMatchObject({ list_amount: 99, discount_pct: 20, amount: 79.2, status: "pending" });
 
     // Wrong amount from the payment provider is rejected
     await expect(asService((q) => q.query(`select public.billing_record_card_payment($1, 1000, 'ZAR', 'AUTH_x', true, 'CUS_x', 'ownerA@example.test')`, [inv.reference]))).rejects.toThrow(/does not match/);
     // Staff and owners cannot call the server-only payment function
-    await expect(w.db.as(U.ownerA, (q) => q.query(`select public.billing_record_card_payment($1, 23920, 'ZAR', 'AUTH_x', true, 'CUS_x', 'x')`, [inv.reference]))).rejects.toThrow(/permission denied/);
+    await expect(w.db.as(U.ownerA, (q) => q.query(`select public.billing_record_card_payment($1, 7920, 'ZAR', 'AUTH_x', true, 'CUS_x', 'x')`, [inv.reference]))).rejects.toThrow(/permission denied/);
 
-    const r = await asService((q) => val(q, `select public.billing_record_card_payment($1, 23920, 'ZAR', 'AUTH_x', true, 'CUS_x', 'ownerA@example.test')`, [inv.reference]));
+    const r = await asService((q) => val(q, `select public.billing_record_card_payment($1, 7920, 'ZAR', 'AUTH_x', true, 'CUS_x', 'ownerA@example.test')`, [inv.reference]));
     expect(r.already_paid).toBe(false);
     // Paying twice (callback and webhook both arrive) is harmless
-    const again = await asService((q) => val(q, `select public.billing_record_card_payment($1, 23920, 'ZAR', 'AUTH_x', true, 'CUS_x', 'ownerA@example.test')`, [inv.reference]));
+    const again = await asService((q) => val(q, `select public.billing_record_card_payment($1, 7920, 'ZAR', 'AUTH_x', true, 'CUS_x', 'ownerA@example.test')`, [inv.reference]));
     expect(again.already_paid).toBe(true);
 
     const sub = (await w.db.query<any>(`select * from subscriptions where business_id = $1`, [w.bizA])).rows[0];
@@ -84,13 +84,13 @@ describe("plans and billing", () => {
       const renewal = await asService((q) => val(q, `select public.billing_start_renewal($1)`, [w.bizA]));
       await asService((q) => q.query(`select public.billing_record_card_payment($1, $2, 'ZAR', 'AUTH_x', true, 'CUS_x', null)`, [renewal.reference, Math.round(Number(renewal.amount) * 100)]));
     }
-    expect(amounts).toEqual([239.2, 239.2, 299]);
+    expect(amounts).toEqual([79.2, 79.2, 99]);
   });
 
   test("after the trial plus 2 days the launch discount is gone", async () => {
     await w.db.query(`update businesses set created_at = now() - interval '5 days 1 hour' where id = $1`, [w.bizB]);
     const q1 = await w.db.as(U.ownerB, (q) => val(q, `select public.billing_quote($1, 'business')`, [w.bizB]));
-    expect(q1).toMatchObject({ list_amount: 699, discount_pct: 0, amount: 699 });
+    expect(q1).toMatchObject({ list_amount: 499, discount_pct: 0, amount: 499 });
   });
 
   test("references: NY0R0 per customer, numbered per payment, never changed", async () => {

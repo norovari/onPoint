@@ -27,7 +27,7 @@ export const PLANS: { id: PlanId; name: string; price: number; blurb: string; fe
   {
     id: "starter",
     name: "Starter",
-    price: 299,
+    price: 99,
     blurb: "For one shop",
     features: [
       "Unlimited products",
@@ -40,7 +40,7 @@ export const PLANS: { id: PlanId; name: string; price: number; blurb: string; fe
   {
     id: "business",
     name: "Business",
-    price: 699,
+    price: 499,
     blurb: "For a busy shop",
     features: [
       "Everything in Starter",
@@ -52,7 +52,7 @@ export const PLANS: { id: PlanId; name: string; price: number; blurb: string; fe
   {
     id: "multi_site",
     name: "Multi-site",
-    price: 1499,
+    price: 999,
     blurb: "For more than one shop",
     features: ["Everything in Business", "Several shops in one account", "One view across all shops"],
   },
