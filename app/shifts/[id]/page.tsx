@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { mlToReading, weighsBottle } from "@/lib/bottles";
 import { notFound } from "next/navigation";
 import { requireSession, isManager } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
@@ -29,7 +30,7 @@ import { CASH_EVENT, MOVEMENT_TYPE, SHIFT_STATUS, when } from "@/lib/labels";
 
 export const metadata = { title: "Shift" };
 
-type Product = { id: string; sku: string; name: string; base_unit: string; tracking_mode: string; pos_code: string | null; container_weight: string | null };
+type Product = { id: string; sku: string; name: string; base_unit: string; tracking_mode: string; pos_code: string | null; container_weight: string | null; full_weight: string | null; bottle_ml: string | null };
 type Count = { product_id: string; count_type: string; quantity: string; version: number; source?: string };
 
 const STAGES = ["opening", "active", "closing_submitted", "approved"];
@@ -60,7 +61,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
 
   const [{ data: products }, { data: counts }, { data: movements }, { data: cashEvents }, { data: imports }, { data: approvals }, { data: settlementsRows }] =
     await Promise.all([
-      supabase.from("products").select("id, sku, name, base_unit, tracking_mode, pos_code, container_weight").eq("active", true).order("sku"),
+      supabase.from("products").select("id, sku, name, base_unit, tracking_mode, pos_code, container_weight, full_weight, bottle_ml").eq("active", true).order("sku"),
       supabase.from("stock_counts").select("product_id, count_type, quantity, version, source").eq("shift_id", id),
       supabase
         .from("stock_movements")
@@ -348,7 +349,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                       <ul className="lines">
                         {(products ?? []).map((p) => (
                           <li key={p.id} className="line">
-                            <label htmlFor={`sold-${p.id}`} className="name" style={{ margin: 0 }}>{p.name} <span className="hint">{p.base_unit === "g" ? "grams" : "units"}</span></label>
+                            <label htmlFor={`sold-${p.id}`} className="name" style={{ margin: 0 }}>{p.name} <span className="hint">{p.base_unit === "ml" ? "ml (25 per tot)" : p.base_unit === "g" ? "grams" : "units"}</span></label>
                             <input id={`sold-${p.id}`} name={`sold:${p.id}`} type="number" inputMode="decimal" min="0" step="any" style={{ width: 110 }} />
                           </li>
                         ))}
@@ -633,9 +634,12 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   );
 }
 
-// Jar weighing: staff enter the scale reading of the whole jar
+// Jar and bottle weighing: staff enter the scale reading of the whole container
 const tare = (p: Product) => (p.base_unit === "g" && p.container_weight !== null && Number(p.container_weight) > 0 ? Number(p.container_weight) : 0);
-const withTare = (p: Product, q: string) => (tare(p) ? String(Math.round((Number(q) + tare(p)) * 1000) / 1000) : String(q));
+const bottle = (p: Product) => weighsBottle(p);
+const withTare = (p: Product, q: string) =>
+  bottle(p) ? String(mlToReading(q, p)) : tare(p) ? String(Math.round((Number(q) + tare(p)) * 1000) / 1000) : String(q);
+const unitWords = (p: Product) => (p.base_unit === "g" ? "grams" : p.base_unit === "ml" ? "ml" : "units");
 
 function CountSheet({
   shiftId,
@@ -670,7 +674,7 @@ function CountSheet({
               <label htmlFor={`q-${type}-${p.id}`} style={{ margin: 0 }}>
                 <span className="name">{p.name}</span>
                 <span className="hint" style={{ display: "block" }}>
-                  {tare(p) ? `Put the full jar on the scale and type the reading. OnPoint subtracts the empty jar’s weight (${Number(p.container_weight)} g).` : `${p.sku}, ${p.base_unit === "g" ? "grams" : "units"}`}{c && c.version > 1 && c.source !== "carried" ? `, recount ${c.version}` : ""}{reasons?.get(p.id) ? ` · ${reasons.get(p.id)}` : ""}
+                  {bottle(p) ? "Put the open bottle on the scale and type the reading in grams. OnPoint works out the ml left." : tare(p) ? `Put the full jar on the scale and type the reading. OnPoint subtracts the empty jar’s weight (${Number(p.container_weight)} g).` : `${p.sku}, ${unitWords(p)}`}{c && c.version > 1 && c.source !== "carried" ? `, recount ${c.version}` : ""}{reasons?.get(p.id) ? ` · ${reasons.get(p.id)}` : ""}
                 </span>
               </label>
               <input
@@ -682,7 +686,7 @@ function CountSheet({
                 min="0"
                 defaultValue={c ? withTare(p, c.quantity) : ""}
                 data-last={last?.get(p.id) !== undefined ? withTare(p, last.get(p.id)!) : undefined}
-                aria-label={tare(p) ? `${p.name}: jar on the scale, in grams` : `${p.name} count in ${p.base_unit === "g" ? "grams" : "units"}`}
+                aria-label={bottle(p) ? `${p.name}: bottle on the scale, in grams` : tare(p) ? `${p.name}: jar on the scale, in grams` : `${p.name} count in ${unitWords(p)}`}
               />
             </li>
           );

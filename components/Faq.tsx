@@ -77,6 +77,29 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
     ],
   },
   {
+    group: "Bars and lounges",
+    items: [
+      {
+        q: "Does OnPoint work for a bar or lounge?",
+        a: (
+          <>
+            <p>Yes. The shift check is the same: what the till says was sold, against what’s left behind the bar and in the cash drawer, at every handover.</p>
+            <ul>
+              <li>Spirits are kept in ml and priced by the 25 ml tot. Beer, cider and mixers are counted by the bottle or can.</li>
+              <li>Hookah tobacco is weighed in grams, and you can set how many grams go in a bowl.</li>
+              <li>Spot-checks, splitting the count between staff, blind counts and the closing questions with photos and PIN all work the same way.</li>
+            </ul>
+            <p><Link href="/demo/bar">See the bar and lounge demo</Link>.</p>
+          </>
+        ),
+      },
+      {
+        q: "How do staff count what’s left in an open bottle?",
+        a: <p>Weigh one empty bottle and one full, sealed bottle of each spirit once, and enter both weights with the bottle size in Settings. At close, staff put the open bottle on the scale and type the reading; OnPoint works out the ml left. Set an over-pour allowance (for example 5%) and only pours beyond it are flagged.</p>,
+      },
+    ],
+  },
+  {
     group: "Your team",
     items: [
       {

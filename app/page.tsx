@@ -16,7 +16,7 @@ const FEATURES: { group: string; items: { t: string; d: string; isNew?: boolean 
     items: [
       { t: "Spot-checks, not full counts", d: "OnPoint selects about 12 products per close. It checks a mix of random products, products with recent differences and products due for a check. Every product is checked within the schedule you set.", isNew: true },
       { t: "Checks shared between staff", d: "OnPoint shares the list between staff on shift. Everyone gets different products to check.", isNew: true },
-      { t: "Weigh the whole jar", d: "Enter the empty jar’s weight once. Staff weigh the full jar and enter the reading. OnPoint subtracts the jar’s weight.", isNew: true },
+      { t: "Weigh the whole jar or bottle", d: "Enter the empty jar’s weight once, and staff weigh the full jar. For spirits, enter the empty and full bottle weights once, and staff weigh the open bottle: OnPoint works out the ml left.", isNew: true },
       { t: "Blind counts", d: "Staff count without seeing the expected stock. If a count needs changing, they recount and give a reason. The original count stays on record." },
     ],
   },
@@ -33,7 +33,7 @@ const FEATURES: { group: string; items: { t: string; d: string; isNew?: boolean 
     group: "Works with the way you sell",
     items: [
       { t: "Works with your till", d: "Use Loyverse? Connect it once and sales come in by themselves at close. Any other till: upload its sales report in CSV or Excel and OnPoint remembers your layout. No till report? OnPoint works out sales from stock counts.", isNew: true },
-      { t: "Fixed-price bags", d: "If you sell 2 g for R50 but allow a little extra, set the bag size and the extra amount allowed. OnPoint flags amounts above that allowance.", isNew: true },
+      { t: "Fixed-price bags and tots", d: "If you sell 2 g for R50 but allow a little extra, set the bag size and the extra allowed. Spirits are sold by the 25 ml tot, with an over-pour allowance. OnPoint flags anything above the allowance.", isNew: true },
       { t: "Special offers checked separately", d: "Deals such as “any 2 pre-rolls for R200” are tracked separately, including the items sold and the amount charged." },
       { t: "No app to install", d: "Open OnPoint in a browser on any phone, tablet or computer. Everyone signs in with their own account." },
     ],
@@ -71,17 +71,18 @@ export default async function Home() {
         </nav>
       </header>
       <main className="wrap">
-        <p className="small" style={{ margin: "24px 0 0", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-soft)" }}>Stock and cash checks for dispensaries</p>
+        <p className="small" style={{ margin: "24px 0 0", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-soft)" }}>Stock and cash checks for dispensaries, bars and lounges</p>
         <h1 style={{ fontSize: 36, margin: "6px 0 10px", lineHeight: 1.15 }}>Know what happened on every shift. Without counting everything, every night.</h1>
         <p className="lede" style={{ fontSize: 18 }}>
           Your till records what was sold. OnPoint checks sales against the stock and cash left at each shift change. If something doesn’t add up, it shows you what needs checking.
         </p>
 
         <form action="/demo" method="get" className="sheet" style={{ borderWidth: 2 }}>
-          <label htmlFor="b" style={{ marginTop: 0, fontSize: 17 }}>Your dispensary’s name</label>
+          <label htmlFor="b" style={{ marginTop: 0, fontSize: 17 }}>Your shop’s name</label>
           <input id="b" name="b" required maxLength={80} placeholder="e.g. Green Leaf Club" autoComplete="organization" />
-          <div style={{ marginTop: 12 }}>
-            <button type="submit" style={{ width: "100%" }}>See how it works</button>
+          <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+            <button type="submit" style={{ width: "100%" }}>See the dispensary demo</button>
+            <button type="submit" formAction="/demo/bar" className="quiet" style={{ width: "100%" }}>See the bar and lounge demo</button>
           </div>
           <p className="muted small" style={{ margin: "10px 0 0" }}>Try a sample shift using example figures. No sign-up needed.</p>
         </form>

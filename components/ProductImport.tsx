@@ -1,6 +1,7 @@
 "use client";
 
 // Upload a product list (CSV or Excel, any layout) and add it all at once.
+import { TOT_ML } from "@/lib/bottles";
 import { useMemo, useState, useTransition } from "react";
 import Papa from "papaparse";
 import { cellText, detectDelimiter } from "@/lib/pos/smart";
@@ -93,7 +94,7 @@ export function ProductImport({ existing }: { existing: { name: string; sku: str
                     <thead><tr><th>Product</th><th>Category</th><th>Sold by</th><th className="num">Price</th></tr></thead>
                     <tbody>
                       {built.items.slice(0, 100).map((p) => (
-                        <tr key={p.sku}><td>{p.name}<br /><span className="small muted">{p.sku}</span></td><td>{p.category}</td><td>{p.weight ? "gram" : "unit"}</td><td className="num">R{Number(p.price).toFixed(2)}{p.weight ? "/g" : ""}</td></tr>
+                        <tr key={p.sku}><td>{p.name}<br /><span className="small muted">{p.sku}</span></td><td>{p.category}</td><td>{p.ml ? "tot" : p.weight ? "gram" : "unit"}</td><td className="num">{p.ml ? `R${(Number(p.price) * TOT_ML).toFixed(2)} a tot` : `R${Number(p.price).toFixed(2)}${p.weight ? "/g" : ""}`}</td></tr>
                       ))}
                     </tbody>
                   </table>

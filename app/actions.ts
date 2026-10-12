@@ -12,6 +12,7 @@ import { notifyAdmin, sendShiftAlert } from "@/lib/notify";
 import { checkPhotos, passwordMatches, statementText, storePhotos, type StatementRow } from "@/lib/statements";
 import { LOCK_MINUTES, MAX_TRIES, PIN_RE, hashPin, pinMatches } from "@/lib/pin";
 import { createServiceClient } from "@/lib/supabase/service";
+import { TOT_ML, readingToMl, weighsBottle } from "@/lib/bottles";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -42,7 +43,8 @@ export async function createBusiness(_: ActionState, f: FormData): Promise<Actio
     p_standard_float: float,
   });
   if (error) return { error: friendly(error) };
-  if (f.get("demo") === "on") await supabase.rpc("load_demo_catalogue", { p_business: biz });
+  if (f.get("demo") === "on" && str(f, "kind") === "bar") await loadBarSamples(supabase, biz as string);
+  else if (f.get("demo") === "on") await supabase.rpc("load_demo_catalogue", { p_business: biz });
 
   // Tell the OnPoint admin about a brand-new shop (not a repeat of an existing one)
   const { data: b } = await supabase.from("businesses").select("created_at").eq("id", biz).maybeSingle();
@@ -58,11 +60,43 @@ export async function createBusiness(_: ActionState, f: FormData): Promise<Actio
       `Shop: ${location}`,
       `Owner: ${str(f, "full_name") || "(no name given)"}, ${who.user?.email ?? "no email"}`,
       `Reference: ${p?.reference ?? "-"}`,
+      `Kind of shop: ${str(f, "kind") || "-"}`,
       `Sample menu loaded: ${f.get("demo") === "on" ? "yes" : "no"}`,
       "3-day trial started.",
     ]);
   }
   redirect("/today");
+}
+
+// Sample bar menu: spirits by the tot (kept in ml, priced per ml), beer and
+// cider, mixers and hookah. Bottle weights are left for the owner to fill in.
+const BAR_SAMPLES: [string, string, string, "ml" | "unit" | "g", number, number | null][] = [
+  ["SP-WHISKY", "Jameson Irish whiskey (tot)", "Spirits", "ml", 35, 750],
+  ["SP-VODKA", "Smirnoff vodka (tot)", "Spirits", "ml", 25, 500],
+  ["SP-TEQUILA", "Olmeca tequila (tot)", "Spirits", "ml", 30, 500],
+  ["SP-BRANDY", "Klipdrift brandy (tot)", "Spirits", "ml", 25, 500],
+  ["SP-JAGER", "Jägermeister (tot)", "Spirits", "ml", 30, 500],
+  ["BC-CASTLE", "Castle Lite", "Beer & cider", "unit", 30, 24],
+  ["BC-BLACK", "Black Label", "Beer & cider", "unit", 30, 24],
+  ["BC-HEINEKEN", "Heineken", "Beer & cider", "unit", 35, 12],
+  ["BC-SAVANNA", "Savanna Dry", "Beer & cider", "unit", 38, 24],
+  ["SD-COKE", "Coke 330ml", "Soft drinks & mixers", "unit", 20, 12],
+  ["SD-REDBULL", "Red Bull", "Soft drinks & mixers", "unit", 35, 12],
+  ["SD-TONIC", "Tonic water", "Soft drinks & mixers", "unit", 20, 12],
+  ["HK-APPLE", "Hookah tobacco: Double Apple", "Hookah", "g", 12, 100],
+];
+async function loadBarSamples(supabase: Awaited<ReturnType<typeof createClient>>, businessId: string) {
+  const { data: user } = await supabase.auth.getUser();
+  for (const [sku, name, category, unit, price, low] of BAR_SAMPLES) {
+    const { data } = await supabase.from("products").insert({
+      business_id: businessId, sku, name, category, low_stock_level: low,
+      tracking_mode: unit === "unit" ? "unit" : "weight", base_unit: unit, display_unit: unit,
+      ...(unit === "ml" ? { bottle_ml: 750 } : {}),
+    }).select("id").single();
+    if (!data) continue;
+    const unitPrice = unit === "ml" ? new Decimal(price).dividedBy(TOT_ML).toDecimalPlaces(4).toString() : String(price);
+    await supabase.from("product_prices").insert({ product_id: data.id, unit_price: unitPrice, valid_from: new Date().toISOString(), created_by: user.user?.id });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -93,11 +127,19 @@ export async function saveCounts(_: ActionState, f: FormData): Promise<ActionSta
   }
   if (entries.length === 0) return { error: "Enter at least one count." };
 
-  // Jars: staff weigh the whole jar, so take the empty jar off
-  const { data: jars } = await supabase.from("products").select("id, name, container_weight").in("id", entries.map((e) => e.product_id)).not("container_weight", "is", null);
+  // Jars and bottles: staff weigh the whole container, so take the empty
+  // container off. Spirit bottles are then turned from grams into ml.
+  const { data: jars } = await supabase.from("products").select("id, name, base_unit, container_weight, full_weight, bottle_ml").in("id", entries.map((e) => e.product_id)).not("container_weight", "is", null);
   for (const j of jars ?? []) {
     const e = entries.find((x) => x.product_id === j.id);
     if (!e || !(Number(j.container_weight) > 0)) continue;
+    if (j.base_unit === "ml") {
+      if (!weighsBottle(j)) continue; // bottle details incomplete: the count is in ml
+      if (new Decimal(e.quantity).lessThan(String(j.container_weight))) return { error: `${j.name}: ${e.quantity}g is less than the empty bottle (${Number(j.container_weight)}g). Weigh the bottle with what’s left in it.` };
+      if (new Decimal(e.quantity).greaterThan(new Decimal(String(j.full_weight)).times(1.05))) return { error: `${j.name}: ${e.quantity}g is more than a full bottle (${Number(j.full_weight)}g). Check the reading.` };
+      e.quantity = readingToMl(e.quantity, j).toString();
+      continue;
+    }
     const net = new Decimal(e.quantity).minus(String(j.container_weight));
     if (net.isNegative()) return { error: `${j.name}: ${e.quantity}g is less than the empty jar (${Number(j.container_weight)}g). Weigh the jar with the stock in it.` };
     e.quantity = net.toString();
@@ -467,18 +509,19 @@ export async function addProduct(_: ActionState, f: FormData): Promise<ActionSta
   const price = str(f, "price");
   if (!str(f, "sku") || !str(f, "name")) return { error: "Enter a SKU and a product name." };
   if (!DEC.test(price)) return { error: "Enter the selling price, for example 18.00." };
-  const base = mode === "weight" ? "g" : "unit";
-  // Weighed products are priced per gram, as dispensaries sell them.
-  const unitPrice = price;
+  const base = mode === "ml" ? "ml" : mode === "weight" ? "g" : "unit";
+  // Weighed products are priced per gram, as dispensaries sell them. Spirits
+  // are priced per tot and stored per ml.
+  const unitPrice = base === "ml" ? new Decimal(price).dividedBy(TOT_ML).toDecimalPlaces(4).toString() : price;
   const { data, error } = await supabase
     .from("products")
     .insert({
       business_id: businessId,
       sku: str(f, "sku"),
       name: str(f, "name"),
-      tracking_mode: mode,
+      tracking_mode: base === "unit" ? "unit" : "weight",
       base_unit: base,
-      display_unit: mode === "weight" ? "g" : "unit",
+      display_unit: base,
       pos_code: str(f, "pos_code") || null,
       category: str(f, "category") || null,
     })
@@ -494,7 +537,7 @@ export async function addProduct(_: ActionState, f: FormData): Promise<ActionSta
 }
 
 // A whole product list at once (from lib/products/import.ts, read in the browser)
-export async function importProducts(items: { name: string; sku: string; pos_code: string | null; category: string; weight: boolean; price: string; low: string | null }[]): Promise<ActionState> {
+export async function importProducts(items: { name: string; sku: string; pos_code: string | null; category: string; weight: boolean; ml?: boolean; price: string; low: string | null }[]): Promise<ActionState> {
   const { supabase, businessId, userId } = await requireSession();
   if (!items.length) return { error: "No new products to add." };
   if (items.length > 500) return { error: "Upload up to 500 products at a time." };
@@ -504,7 +547,7 @@ export async function importProducts(items: { name: string; sku: string; pos_cod
     if (!it.name?.trim() || !DEC.test(it.price)) { failed.push(it.name || "(no name)"); continue; }
     const { data, error } = await supabase.from("products").insert({
       business_id: businessId, sku: it.sku.slice(0, 40), name: it.name.slice(0, 120),
-      tracking_mode: it.weight ? "weight" : "unit", base_unit: it.weight ? "g" : "unit", display_unit: it.weight ? "g" : "unit",
+      tracking_mode: it.weight || it.ml ? "weight" : "unit", base_unit: it.ml ? "ml" : it.weight ? "g" : "unit", display_unit: it.ml ? "ml" : it.weight ? "g" : "unit",
       pos_code: it.pos_code || null, category: it.category || null,
       low_stock_level: it.low && DEC.test(it.low) ? it.low : null,
     }).select("id").single();
@@ -556,7 +599,7 @@ export async function setSalesSource(_: ActionState, f: FormData): Promise<Actio
 
 // Remembers how this shop's till file is laid out and which items are which
 export async function savePosLayout(layout: { columns?: Record<string, string>; links?: Record<string, string>; skip?: string[]; sizes?: Record<string, number> }): Promise<ActionState> {
-  for (const v of Object.values(layout.sizes ?? {})) if (!(typeof v === "number" && v > 0 && v <= 1000)) return { error: "Grams in each sale must be a number above 0." };
+  for (const v of Object.values(layout.sizes ?? {})) if (!(typeof v === "number" && v > 0 && v <= 5000)) return { error: "The amount in each sale must be a number above 0." };
   const { supabase, businessId } = await requireSession();
   const { error } = await supabase.rpc("set_pos_layout", { p_business: businessId, p_layout: layout });
   if (error) return { error: friendly(error) };
@@ -644,16 +687,19 @@ export async function setCountSettings(_: ActionState, f: FormData): Promise<Act
 export async function setProductOptions(_: ActionState, f: FormData): Promise<ActionState> {
   const { supabase } = await requireSession();
   const num = (k: string) => { const v = str(f, k).replace(",", "."); return v === "" ? null : v; };
-  for (const k of ["low_stock_level", "allowance_pct", "container_weight"]) {
+  for (const k of ["low_stock_level", "allowance_pct", "container_weight", "full_weight", "bottle_ml"]) {
     const v = num(k);
     if (v !== null && !DEC.test(v)) return { error: `"${v}" isn't a number.` };
   }
   const allowance = num("allowance_pct");
   if (allowance !== null && Number(allowance) > 50) return { error: "The allowance can be at most 50%." };
+  const empty = Number(num("container_weight") ?? 0), full = Number(num("full_weight") ?? 0);
+  if (f.has("bottle_ml") && full > 0 && full <= empty) return { error: "The full bottle must weigh more than the empty bottle." };
   const { data, error } = await supabase.from("products").update({
     low_stock_level: num("low_stock_level"),
     allowance_pct: allowance,
     container_weight: num("container_weight"),
+    ...(f.has("bottle_ml") ? { full_weight: Number(num("full_weight")) > 0 ? num("full_weight") : null, bottle_ml: Number(num("bottle_ml")) > 0 ? num("bottle_ml") : null } : {}),
     always_count: f.get("always_count") === "on",
   }).eq("id", str(f, "product_id")).select("id");
   if (error) return { error: friendly(error) };

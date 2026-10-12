@@ -42,6 +42,14 @@ export function sizeFromName(name: string): number | null {
   return n > 0 && n <= 1000 ? n : null;
 }
 
+// "Jameson double 50ml" -> 50 (ml in each sale of a spirit)
+export function mlFromName(name: string): number | null {
+  const m = /(?:^|[^\d.,])(\d+(?:[.,]\d+)?)\s*ml\b/i.exec(name);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  return n > 0 && n <= 5000 ? n : null;
+}
+
 // Words that point at each field, strongest first. Headings are lower-cased and
 // stripped of punctuation before matching.
 const HINTS: Record<Field, RegExp[]> = {

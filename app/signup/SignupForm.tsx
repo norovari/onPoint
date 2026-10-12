@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { LAUNCH_DISCOUNT, TRIAL_DAYS } from "@/lib/plans";
 
-export default function SignupForm({ businessName }: { businessName: string }) {
+export default function SignupForm({ businessName, shopType }: { businessName: string; shopType?: "bar" }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export default function SignupForm({ businessName }: { businessName: string }) {
       email: String(f.get("email")),
       password: String(f.get("password")),
       options: {
-        data: { full_name: String(f.get("full_name")).trim(), business_name: business },
+        data: { full_name: String(f.get("full_name")).trim(), business_name: business, ...(shopType ? { shop_type: shopType } : {}) },
         emailRedirectTo: `${window.location.origin}/auth/confirm`,
       },
     });

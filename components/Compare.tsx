@@ -16,7 +16,7 @@ const ROWS: { what: string; means: string; pos: Cell; ai: Cell; op: Cell }[] = [
   { what: "Spot-checks, not full counts", means: "A short list each night: some random, some that didn’t tally, some overdue.", pos: N("You choose"), ai: N("No"), op: Y("About 12 a night") },
   { what: "Count split between staff", means: "Everyone on shift gets different products to check.", pos: N("No"), ai: N("No"), op: Y("At random") },
   { what: "Blind counts", means: "Staff don’t see the expected figure, so they can’t just copy it.", pos: S("Cash only, if set"), ai: S("Depends"), op: Y("Stock and cash") },
-  { what: "Jar weighing and bag allowance", means: "Empty jar taken off; a 2.2 g “2 g bag” isn’t flagged, over-filling is.", pos: N("No"), ai: N("No"), op: Y("Per product") },
+  { what: "Jar and bottle weighing, bag and pour allowance", means: "Empty jar or bottle taken off; a 2.2 g “2 g bag” or a generous tot isn’t flagged, over-filling or over-pouring is.", pos: N("No"), ai: N("No"), op: Y("Per product") },
   { what: "Staff confirmation", means: "Three questions, photos and each person’s own PIN at close.", pos: N("No"), ai: N("No"), op: Y("Every close") },
   { what: "Differences must be explained", means: "Stays open until someone gives a reason and a manager signs off.", pos: N("No"), ai: S("Flags only"), op: Y("Yes") },
   { what: "Supplier orders", means: "Purchase orders to suppliers.", pos: S("Often an add-on"), ai: S("Depends"), op: N("Keep your POS for this") },

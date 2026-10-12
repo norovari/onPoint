@@ -6,15 +6,19 @@ import { formatZar } from "@/lib/calculations";
 import { ProductImport } from "@/components/ProductImport";
 import { PosConnect } from "@/components/PosConnect";
 import { CATEGORIES } from "@/lib/products/import";
+import { TOT_ML } from "@/lib/bottles";
 
 export const metadata = { title: "Settings" };
 
-function optionSummary(p: { always_count: boolean; low_stock_level: string | null; allowance_pct: string | null; container_weight: string | null }) {
+function optionSummary(p: { base_unit: string; always_count: boolean; low_stock_level: string | null; allowance_pct: string | null; container_weight: string | null; full_weight: string | null; bottle_ml: string | null }) {
+  const ml = p.base_unit === "ml";
   return [
     p.always_count && "check every shift",
     p.low_stock_level !== null && `warn me below ${Number(p.low_stock_level)}`,
     p.allowance_pct !== null && Number(p.allowance_pct) > 0 && `${Number(p.allowance_pct)}% extra allowed`,
-    p.container_weight !== null && Number(p.container_weight) > 0 && `empty jar ${Number(p.container_weight)} g`,
+    !ml && p.container_weight !== null && Number(p.container_weight) > 0 && `empty jar ${Number(p.container_weight)} g`,
+    ml && Number(p.bottle_ml) > 0 && Number(p.full_weight) > 0 && Number(p.container_weight) > 0 && `${Number(p.bottle_ml)} ml bottle, weighed`,
+    ml && !(Number(p.bottle_ml) > 0 && Number(p.full_weight) > 0 && Number(p.container_weight) > 0) && "add bottle weights to weigh it",
   ].filter(Boolean).join(", ");
 }
 
@@ -25,7 +29,7 @@ export default async function Settings() {
 
   const { data: specials } = await supabase.from("specials").select("id, name, code, deal_price, items_per_deal, active, special_products(product_id)").order("name");
   const [{ data: products }, { data: team }, { data: biz }, { data: sub }] = await Promise.all([
-    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, category, active, low_stock_level, always_count, allowance_pct, container_weight, product_prices(unit_price, valid_from, valid_to)").order("category").order("name"),
+    supabase.from("products").select("id, sku, name, tracking_mode, base_unit, pos_code, category, active, low_stock_level, always_count, allowance_pct, container_weight, full_weight, bottle_ml, product_prices(unit_price, valid_from, valid_to)").order("category").order("name"),
     isManager(s.role)
       ? supabase.from("memberships").select("user_id, role, active, profiles(full_name)").eq("business_id", s.businessId)
       : Promise.resolve({ data: [] as never[] }),
@@ -53,8 +57,8 @@ export default async function Settings() {
                 <tr key={p.id}>
                   <td>{p.name}<br /><span className="muted small">{p.sku}</span></td>
                   <td>{p.category || <span className="muted">none</span>}</td>
-                  <td>{p.base_unit === "g" ? "gram" : "unit"}</td>
-                  <td className="num">{price === undefined ? "—" : p.base_unit === "g" ? `${formatZar(price)}/g` : formatZar(price)}</td>
+                  <td>{p.base_unit === "g" ? "gram" : p.base_unit === "ml" ? "tot" : "unit"}</td>
+                  <td className="num">{price === undefined ? "—" : p.base_unit === "g" ? `${formatZar(price)}/g` : p.base_unit === "ml" ? `${formatZar(Number(price) * TOT_ML)} a tot` : formatZar(price)}</td>
                   <td>
                     <span className="small">{optionSummary(p) || <span className="muted">Default</span>}</span>
                     {owner && (
@@ -72,6 +76,19 @@ export default async function Settings() {
                               <input id={`alw-${p.id}`} name="allowance_pct" inputMode="decimal" defaultValue={p.allowance_pct ?? ""} style={{ width: 100 }} />
                               <label htmlFor={`jar-${p.id}`}>Empty jar weight (g) <span className="hint">OnPoint subtracts this from the full jar reading.</span></label>
                               <input id={`jar-${p.id}`} name="container_weight" inputMode="decimal" defaultValue={p.container_weight ?? ""} style={{ width: 100 }} />
+                            </>
+                          )}
+                          {p.base_unit === "ml" && (
+                            <>
+                              <label htmlFor={`alw-${p.id}`}>Over-pour allowed (%) <span className="hint">For example, 5% allows a little over 25 ml a tot before it’s flagged.</span></label>
+                              <input id={`alw-${p.id}`} name="allowance_pct" inputMode="decimal" defaultValue={p.allowance_pct ?? ""} style={{ width: 100 }} />
+                              <p className="small muted" style={{ margin: "10px 0 0" }}>To count by weighing the open bottle, weigh one empty and one full sealed bottle once:</p>
+                              <label htmlFor={`ml-${p.id}`}>Bottle size (ml)</label>
+                              <input id={`ml-${p.id}`} name="bottle_ml" inputMode="decimal" defaultValue={p.bottle_ml ?? "750"} style={{ width: 100 }} />
+                              <label htmlFor={`jar-${p.id}`}>Empty bottle weight (g)</label>
+                              <input id={`jar-${p.id}`} name="container_weight" inputMode="decimal" defaultValue={p.container_weight ?? ""} style={{ width: 100 }} />
+                              <label htmlFor={`full-${p.id}`}>Full bottle weight (g)</label>
+                              <input id={`full-${p.id}`} name="full_weight" inputMode="decimal" defaultValue={p.full_weight ?? ""} style={{ width: 100 }} />
                             </>
                           )}
                           <div style={{ marginTop: 8 }}><Submit className="quiet">Save</Submit></div>
@@ -98,14 +115,14 @@ export default async function Settings() {
           <label htmlFor="p-name">Name</label>
           <input id="p-name" name="name" required />
           <label htmlFor="p-cat">Category</label>
-          <input id="p-cat" name="category" list="p-cats" placeholder="Flower, Pre-rolls, Edibles…" />
+          <input id="p-cat" name="category" list="p-cats" placeholder="Flower, Pre-rolls, Spirits, Beer…" />
           <datalist id="p-cats">{CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
           <div className="row">
             <div>
               <label htmlFor="p-mode">Sold by</label>
-              <select id="p-mode" name="tracking_mode"><option value="unit">Unit</option><option value="weight">Gram</option></select>
+              <select id="p-mode" name="tracking_mode"><option value="unit">Unit</option><option value="weight">Gram</option><option value="ml">Tot (spirits, kept in ml)</option></select>
             </div>
-            <div><label htmlFor="p-price">Price (R per unit or gram)</label><input id="p-price" name="price" inputMode="decimal" required /></div>
+            <div><label htmlFor="p-price">Price (R per unit, gram or 25 ml tot)</label><input id="p-price" name="price" inputMode="decimal" required /></div>
           </div>
           <div style={{ marginTop: 12 }}><Submit>Add product</Submit></div>
         </ActionForm>

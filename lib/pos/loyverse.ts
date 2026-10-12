@@ -67,7 +67,7 @@ export function receiptsToRows(receipts: LvReceipt[]): string[][] {
 // Items -> new products for OnPoint (skipping ones the shop already has).
 export function itemsToProducts(items: LvItem[], existing: { name: string; sku: string; pos_code?: string | null }[], categoryOf: (text: string, name: string) => string) {
   const have = new Set(existing.flatMap((p) => [p.name.toLowerCase(), p.sku.toLowerCase(), (p.pos_code ?? "").toLowerCase()]).filter(Boolean));
-  const out: { name: string; sku: string; pos_code: string | null; category: string; weight: boolean; price: string; low: string | null }[] = [];
+  const out: { name: string; sku: string; pos_code: string | null; category: string; weight: boolean; ml?: boolean; price: string; low: string | null }[] = [];
   let skipped = 0;
   for (const it of items) {
     if (it.deleted_at) continue;
@@ -79,7 +79,11 @@ export function itemsToProducts(items: LvItem[], existing: { name: string; sku: 
       if (have.has(name.toLowerCase()) || have.has(sku.toLowerCase())) { skipped++; continue; }
       if (v.default_price === null || v.default_price === undefined) continue; // variable price: owner sets it
       have.add(name.toLowerCase()); have.add(sku.toLowerCase());
-      out.push({ name: name.slice(0, 120), sku, pos_code: v.sku || null, category: categoryOf("", name), weight: !!it.sold_by_weight, price: r2(Number(v.default_price)), low: null });
+      const category = categoryOf("", name);
+      // Spirits sold by the tot are kept in ml, priced per ml (25 ml tot)
+      const ml = category === "Spirits" && !it.sold_by_weight && !/bottle|\bbtl\b|\d\s*(ml|l)\b|litre/i.test(name);
+      out.push({ name: name.slice(0, 120), sku, pos_code: v.sku || null, category, weight: !!it.sold_by_weight, ...(ml ? { ml } : {}),
+        price: ml ? (Math.round((Number(v.default_price) / 25) * 10000) / 10000).toString() : r2(Number(v.default_price)), low: null });
     }
   }
   return { items: out, skipped };

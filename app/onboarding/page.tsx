@@ -28,9 +28,17 @@ export default async function Onboarding() {
         <input id="location" name="location" required defaultValue="Main store" />
         <label htmlFor="float">Starting cash float (R) <span className="hint">the cash you keep in the till at the beginning of a shift</span></label>
         <input id="float" name="float" type="number" inputMode="decimal" step="0.01" min="0" defaultValue="500" />
+        <fieldset style={{ border: 0, padding: 0, margin: "12px 0 0" }}>
+          <legend style={{ fontWeight: 700 }}>What kind of shop?</legend>
+          {[["dispensary", "Dispensary"], ["bar", "Bar or lounge"], ["other", "Other shop"]].map(([v, l]) => (
+            <label key={v} style={{ display: "flex", gap: 10, alignItems: "center", fontWeight: 400 }}>
+              <input type="radio" name="kind" value={v} defaultChecked={v === (data.user!.user_metadata?.shop_type === "bar" ? "bar" : "dispensary")} style={{ width: "auto" }} /> {l}
+            </label>
+          ))}
+        </fieldset>
         <label style={{ display: "flex", gap: 10, alignItems: "center", fontWeight: 400 }}>
           <input type="checkbox" name="demo" defaultChecked style={{ width: "auto" }} />
-          Add sample products to try a shift first. You can edit or remove them later.
+          Add sample products for your kind of shop to try a shift first. You can edit or remove them later.
         </label>
         <div style={{ marginTop: 16 }}>
           <Submit>Create my shop</Submit>

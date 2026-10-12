@@ -7,12 +7,13 @@ import { useMemo, useState, useTransition } from "react";
 import Papa from "papaparse";
 import { sha256Hex } from "@/lib/pos/csv";
 import {
-  FIELDS, buildLines, cellText, collectItems, detectDelimiter, findHeaderRow, guessMapping, linkItems, sizeFromName,
+  FIELDS, buildLines, cellText, collectItems, detectDelimiter, findHeaderRow, guessMapping, linkItems, mlFromName, sizeFromName,
   type Field, type Layout, type Mapping, type Product,
 } from "@/lib/pos/smart";
 import { importPos, savePosLayout, saveTillTotals } from "@/app/actions";
 import { getLoyverseSales } from "@/app/pos-actions";
 import { formatZar } from "@/lib/calculations";
+import { TOT_ML } from "@/lib/bottles";
 
 type Item = { key: string; code: string; name: string; count: number };
 const SKIP = "__skip__";
@@ -102,15 +103,22 @@ export function PosImport({ shiftId, products, layout, loyverse = false }: { shi
     if (f === "code" || f === "name") relink(m, body);
   }
 
+  // Spirits are kept in ml, so a till sale of one tot is 25 ml unless set otherwise
+  const mlIds = useMemo(() => new Set(products.filter((p) => p.base_unit === "ml").map((p) => p.id)), [products]);
+  const effSizes = useMemo(() => {
+    const x = { ...sizes };
+    for (const it of items) if (links[it.key] && mlIds.has(links[it.key]) && x[it.key] === undefined) x[it.key] = mlFromName(it.name || it.code) ?? TOT_ML;
+    return x;
+  }, [sizes, items, links, mlIds]);
   const built = useMemo(
-    () => (rows.length ? buildLines(body, mapping, links, skip, products, new Date(), tag, sizes) : null),
-    [rows.length, body, mapping, links, skip, products, tag, sizes],
+    () => (rows.length ? buildLines(body, mapping, links, skip, products, new Date(), tag, effSizes) : null),
+    [rows.length, body, mapping, links, skip, products, tag, effSizes],
   );
   const missing = FIELDS.filter((f) => f.required && mapping[f.key] === undefined).length > 0
     || (mapping.name === undefined && mapping.code === undefined)
     || (mapping.amount === undefined && mapping.price === undefined);
   const open = toLink.filter((it) => !links[it.key] && !skip.includes(it.key));
-  const weighed = new Set(products.filter((p) => p.base_unit === "g").map((p) => p.id));
+  const weighed = new Set(products.filter((p) => p.base_unit === "g" || p.base_unit === "ml").map((p) => p.id));
   const bagItems = items.filter((it) => links[it.key] && weighed.has(links[it.key]) && !skip.includes(it.key));
   const sample = (i: number | undefined) => (i === undefined ? "" : body.find((r) => r[i])?.[i] ?? "");
 
@@ -118,7 +126,7 @@ export function PosImport({ shiftId, products, layout, loyverse = false }: { shi
     if (!built) return;
     start(async () => {
       const columns = Object.fromEntries(Object.entries(mapping).map(([f, i]) => [f, headers[i as number]]));
-      const saved = await savePosLayout({ columns, links, skip, sizes });
+      const saved = await savePosLayout({ columns, links, skip, sizes: effSizes });
       if (saved?.error) { setResult(saved); return; }
       const r = await importPos({ shiftId, fileName: fileName || "till.csv", sha256: hash, totals: built.totals, lines: built.lines });
       if (r?.error) { setResult(r); return; }
@@ -199,18 +207,18 @@ export function PosImport({ shiftId, products, layout, loyverse = false }: { shi
           {/* Fixed bags on weighed products */}
           {!missing && bagItems.length > 0 && (
             <details className="sheet" style={{ marginTop: 12 }} open={bagItems.some((it) => layout.sizes?.[it.key] === undefined && sizes[it.key] !== undefined)}>
-              <summary><strong>Grams in each bag</strong> <span className="small muted">for flower sold in fixed bags</span></summary>
-              <p className="small muted">If your till records “2 g for R50”, enter 2 g. Three sales then count as 6 g sold. Leave as 1 if your till already records grams.</p>
+              <summary><strong>Amount in each sale</strong> <span className="small muted">for flower sold in fixed bags, and spirits sold by the tot</span></summary>
+              <p className="small muted">If your till records “2 g for R50”, enter 2 g: three sales then count as 6 g sold. Spirits start at 25 ml a tot; change it for doubles or bottles. Leave grams as 1 if your till already records grams.</p>
               <ul className="lines">
                 {bagItems.map((it) => (
                   <li key={it.key} className="line">
                     <span className="name" style={{ margin: 0 }}>{it.name || it.code}</span>
-                    <input aria-label={`Grams in each sale of ${it.name || it.code}`} inputMode="decimal" style={{ width: 90 }}
-                      defaultValue={String(sizes[it.key] ?? 1)}
+                    <input aria-label={`${mlIds.has(links[it.key]) ? "ml" : "Grams"} in each sale of ${it.name || it.code}`} inputMode="decimal" style={{ width: 90 }}
+                      defaultValue={String(effSizes[it.key] ?? 1)}
                       onChange={(e) => {
                         const n = Number(e.target.value.replace(",", "."));
-                        setSizes((s) => { const x = { ...s }; if (n > 0 && n !== 1) x[it.key] = n; else delete x[it.key]; return x; });
-                      }} /> g
+                        setSizes((s) => { const x = { ...s }; if (n > 0 && (n !== 1 || mlIds.has(links[it.key]))) x[it.key] = n; else delete x[it.key]; return x; });
+                      }} /> {mlIds.has(links[it.key]) ? "ml" : "g"}
                   </li>
                 ))}
               </ul>
