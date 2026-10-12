@@ -11,12 +11,13 @@ import {
   type Field, type Layout, type Mapping, type Product,
 } from "@/lib/pos/smart";
 import { importPos, savePosLayout, saveTillTotals } from "@/app/actions";
+import { getLoyverseSales } from "@/app/pos-actions";
 import { formatZar } from "@/lib/calculations";
 
 type Item = { key: string; code: string; name: string; count: number };
 const SKIP = "__skip__";
 
-export function PosImport({ shiftId, products, layout }: { shiftId: string; products: Product[]; layout: Layout }) {
+export function PosImport({ shiftId, products, layout, loyverse = false }: { shiftId: string; products: Product[]; layout: Layout; loyverse?: boolean }) {
   const [fileName, setFileName] = useState("");
   const [hash, setHash] = useState("");
   const tag = hash.slice(0, 12);
@@ -69,14 +70,29 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
         data = Papa.parse<string[]>(text.trim(), { delimiter: detectDelimiter(text), skipEmptyLines: false }).data;
       }
       data = data.map((r) => r.map((c) => (c ?? "").toString()));
-      setHash(await sha256Hex(JSON.stringify(data)));
-      const h = findHeaderRow(data);
-      const g = guessMapping(data[h] ?? [], layout.columns);
-      setRows(data); setHeader(h); setMapping(g.mapping); setShowMap(!g.sure);
-      relink(g.mapping, data.slice(h + 1));
+      loadRows(data, await sha256Hex(JSON.stringify(data)));
     } catch {
       setReadError("We couldn’t read this file. Save it as CSV or Excel (.xlsx) from your till and try again.");
     }
+  }
+
+  function loadRows(data: string[][], sha: string) {
+    setHash(sha);
+    const h = findHeaderRow(data);
+    const g = guessMapping(data[h] ?? [], layout.columns);
+    setRows(data); setHeader(h); setMapping(g.mapping); setShowMap(!g.sure);
+    relink(g.mapping, data.slice(h + 1));
+  }
+
+  // Loyverse: fetch this shift's receipts and review them like a till file
+  const [lvBusy, setLvBusy] = useState(false);
+  async function fromLoyverse() {
+    setResult(undefined); setReadError(""); setRows([]); setToLink([]); setLvBusy(true);
+    const r = await getLoyverseSales(shiftId);
+    setLvBusy(false);
+    if (r.error || !r.rows) { setReadError(r.error ?? "Nothing to bring in."); return; }
+    setFileName(r.fileName ?? "Loyverse");
+    loadRows(r.rows, r.sha256!);
   }
 
   function setField(f: Field, v: string) {
@@ -116,6 +132,12 @@ export function PosImport({ shiftId, products, layout }: { shiftId: string; prod
 
   return (
     <div>
+      {loyverse && (
+        <div style={{ marginBottom: 12 }}>
+          <button type="button" onClick={fromLoyverse} disabled={lvBusy} style={{ width: "100%" }}>{lvBusy ? "Getting sales…" : "Get sales from Loyverse"}</button>
+          <p className="small muted" style={{ margin: "6px 0 0" }}>Brings in every sale and refund since this shift opened. Tap again later for newer sales; nothing is counted twice. Or upload a file below.</p>
+        </div>
+      )}
       <label htmlFor="pos-file">
         Upload today’s till sales <span className="hint">Upload the sales report from your till in CSV or Excel format.</span>
       </label>

@@ -30,7 +30,7 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
       },
       {
         q: "Will it get the sales from my existing POS?",
-        a: <p>Yes, from the till’s sales export. If your till can save its sales as a CSV or Excel file, OnPoint reads it, whatever the layout. The first time, it asks which column is which and which till item is which product, then remembers. It doesn’t connect to tills directly yet, so someone uploads the file at close. No till? Staff count at open and close, and OnPoint works out what was sold from the counts.</p>,
+        a: <p>Yes. If you use Loyverse, connect it once in Settings and staff tap “Get sales from Loyverse” at close; there’s no file to upload, and products can be brought in the same way. With any other till, upload its sales export (CSV or Excel, any layout): the first time, OnPoint asks which column is which and which till item is which product, then remembers. No till? Staff count at open and close, and OnPoint works out what was sold from the counts.</p>,
       },
       {
         q: "Everyone enters their counts and our system prints a report. What does OnPoint give me?",

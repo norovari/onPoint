@@ -4,6 +4,7 @@ import { ActionForm, Submit } from "@/components/ActionForm";
 import { addMember, addProduct, addSpecial, deactivateMember, setCountSettings, setProductOptions, setRequireStatement, setSalesSource, toggleSpecial, updateTolerances } from "@/app/actions";
 import { formatZar } from "@/lib/calculations";
 import { ProductImport } from "@/components/ProductImport";
+import { PosConnect } from "@/components/PosConnect";
 import { CATEGORIES } from "@/lib/products/import";
 
 export const metadata = { title: "Settings" };
@@ -32,6 +33,7 @@ export default async function Settings() {
     owner ? supabase.from("subscriptions").select("plan, status, current_period_end").eq("business_id", s.businessId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
+  const { data: posConn } = owner ? await supabase.rpc("pos_connection", { p_business: s.businessId }) : { data: null };
   const currentPrice = (p: { product_prices: { unit_price: string; valid_from: string; valid_to: string | null }[] }) =>
     p.product_prices.filter((x) => !x.valid_to).sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0]?.unit_price;
 
@@ -189,6 +191,9 @@ export default async function Settings() {
 
       {owner && biz && (
         <>
+          <h2>Connect your POS</h2>
+          <PosConnect conn={(posConn ?? null) as never} />
+
           <h2>Where your sales come from</h2>
           <ActionForm action={setSalesSource} className="sheet">
             <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>

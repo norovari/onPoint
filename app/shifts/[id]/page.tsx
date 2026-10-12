@@ -87,6 +87,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   const shared = assignedTo.size > 0;
   const imCounting = progress.some((p) => p.user_id === s.userId);
   const fromCounts = biz?.sales_source === "counts";
+  const { data: posConn } = await supabase.rpc("pos_connection", { p_business: s.businessId });
 
   const status = shift.status as string;
   const st = SHIFT_STATUS[status];
@@ -333,7 +334,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
                 <>
                   <h2>Till sales</h2>
                   <div className="sheet">
-                    <PosImport shiftId={id} products={(products ?? []) as Product[]} layout={(biz?.pos_layout ?? {}) as object} />
+                    <PosImport shiftId={id} products={(products ?? []) as Product[]} layout={(biz?.pos_layout ?? {}) as object} loyverse={!!posConn} />
                     {(imports ?? []).length > 0 && (
                       <p className="muted small" style={{ marginBottom: 0 }}>
                         Imported: {(imports ?? []).map((i) => `${i.file_name} (${i.row_count} lines, ${formatZar(i.pos_total_sales)})`).join("; ")}

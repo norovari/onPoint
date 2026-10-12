@@ -32,7 +32,7 @@ const FEATURES: { group: string; items: { t: string; d: string; isNew?: boolean 
   {
     group: "Works with the way you sell",
     items: [
-      { t: "Works with your till", d: "Upload a sales report from your till in CSV or Excel format. OnPoint helps you match the columns and remembers your choices. If you don’t have a till report, OnPoint can work out sales from stock counts." },
+      { t: "Works with your till", d: "Use Loyverse? Connect it once and sales come in by themselves at close. Any other till: upload its sales report in CSV or Excel and OnPoint remembers your layout. No till report? OnPoint works out sales from stock counts.", isNew: true },
       { t: "Fixed-price bags", d: "If you sell 2 g for R50 but allow a little extra, set the bag size and the extra amount allowed. OnPoint flags amounts above that allowance.", isNew: true },
       { t: "Special offers checked separately", d: "Deals such as “any 2 pre-rolls for R200” are tracked separately, including the items sold and the amount charged." },
       { t: "No app to install", d: "Open OnPoint in a browser on any phone, tablet or computer. Everyone signs in with their own account." },
