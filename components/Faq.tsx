@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Compare } from "@/components/Compare";
 import { LAUNCH_DISCOUNT, PLANS, TRIAL_DAYS } from "@/lib/plans";
 
 // Questions shop owners actually ask, in their words. Shown on /faq (public
@@ -138,6 +139,8 @@ export function Faq({ signedIn }: { signedIn: boolean }) {
           <li>The owner gets it all in an email that night.</li>
         </ul>
       </div>
+
+      <Compare />
 
       {QA.map((g, i) => (
         <section key={g.group} aria-labelledby={`faq-g${i}`}>

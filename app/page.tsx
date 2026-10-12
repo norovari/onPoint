@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Compare } from "@/components/Compare";
 import { LAUNCH_DISCOUNT, LEGAL_NAME, PLANS, TRIAL_DAYS } from "@/lib/plans";
 
 export const metadata = {
@@ -107,6 +108,8 @@ export default async function Home() {
             </section>
           ))}
         </div>
+
+        <Compare />
 
         <div className="sheet" style={{ marginTop: 28, borderWidth: 2 }}>
           <h2 style={{ marginTop: 0 }}>Try it free</h2>

@@ -210,3 +210,28 @@ details.faq .faq-a ul { padding-left: 20px; }
 .feature h3 { margin: 0 0 4px; font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .feature p { margin: 0; font-size: 15px; color: var(--ink-soft); }
 .badge { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--ink); color: var(--paper); }
+
+/* Comparison table */
+.cmp { font-size: 14px; min-width: 560px; }
+.cmp th[scope="row"] { font-weight: 400; text-align: left; vertical-align: top; }
+.cmp-what { display: block; font-weight: 700; }
+.cmp-means { display: block; font-size: 13px; color: var(--ink-soft); }
+.cmp td { vertical-align: top; }
+.cmp-mark { font-weight: 800; }
+.cmp td[data-v="yes"] .cmp-mark { color: var(--matched); }
+.cmp td[data-v="no"] .cmp-mark { color: var(--ink-soft); }
+.cmp td[data-v="some"] .cmp-mark { color: var(--pending); }
+.cmp .cmp-op { background: color-mix(in srgb, var(--matched) 8%, transparent); font-weight: 600; }
+@media (max-width: 640px) {
+  .compare .scroll { overflow: visible; }
+  .cmp { min-width: 0; display: block; border: 0; }
+  .cmp thead { display: none; }
+  .cmp tbody, .cmp tr, .cmp th[scope="row"], .cmp td { display: block; width: 100%; }
+  .cmp tr { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--paper); }
+  .cmp th[scope="row"], .cmp td { border: 0; padding: 2px 0; }
+  .cmp th[scope="row"] { margin-bottom: 4px; }
+  .cmp td { display: flex; gap: 6px; font-size: 14px; }
+  .cmp td::before { content: attr(data-label) ":"; flex: 0 0 112px; color: var(--ink-soft); font-weight: 400; }
+  .cmp .cmp-op { background: transparent; }
+  .cmp .cmp-op::before { color: var(--ink); font-weight: 700; }
+}
