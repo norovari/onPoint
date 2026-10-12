@@ -223,7 +223,7 @@ export default async function Settings() {
           <ActionForm action={setRequireStatement} className="sheet">
             <label className="check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontWeight: 400 }}>
               <input type="checkbox" name="require_statement" defaultChecked={biz.require_statement !== false} style={{ width: "auto", marginTop: 4 }} />
-              <span><strong>Ask staff the three shift questions at close.</strong> Each person explains anything not recorded, reports stock problems, adds notes and photos, and confirms using their own password. Answers appear in the shift report and nightly email.</span>
+              <span><strong>Ask staff the three shift questions at close.</strong> Each person explains anything not recorded, reports stock problems, adds notes and photos, and confirms with their own PIN or password. Answers appear in the shift report and nightly email.</span>
             </label>
             <div style={{ marginTop: 12 }}><Submit>Save</Submit></div>
           </ActionForm>

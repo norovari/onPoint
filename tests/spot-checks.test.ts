@@ -83,6 +83,28 @@ describe("spot-checks", () => {
     expect(ex.explanation).toMatch(/35% more than was sold left the stock: 0.7g extra on 2.0g sold/);
   });
 
+  test("the most valuable stock on the shelf gets checked", async () => {
+    const prev = (await db.query<{ id: string }>(`select id from shifts where business_id = $1 and status = 'closing_submitted'`, [biz])).rows[0].id;
+    await db.as(MANAGER, (q) => q.query(`select public.review_shift($1, 'approved', null)`, [prev]));
+    const id = await db.as(OWNER, async (q) => {
+      const id = await val(q, `select public.open_shift($1, 630)`, [loc]);
+      await q.query(`select public.activate_shift($1)`, [id]);
+      return id as string;
+    });
+    const reasons = (await db.query<{ reason: string; product_id: string }>(`select reason, product_id from shift_count_list where shift_id = $1`, [id])).rows;
+    expect(reasons).toHaveLength(5);
+    const top = (await db.query<{ product_id: string }>(
+      `select c.product_id from stock_counts c join products p on p.id = c.product_id
+        where c.shift_id = $1 and c.count_type = 'opening'
+          and c.product_id not in (select product_id from shift_count_list where shift_id = $1 and reason <> 'High value')
+        order by c.quantity * private.price_at(c.product_id, now()) desc limit 1`, [id])).rows[0];
+    expect(reasons.find((r) => r.reason === "High value")?.product_id).toBe(top.product_id);
+    await db.as(OWNER, async (q) => {
+      for (const r of reasons) await q.query(`insert into stock_counts (business_id, shift_id, product_id, count_type, quantity, submitted_by) values ($1,$2,$3,'closing','10',$4)`, [biz, id, r.product_id, OWNER]);
+      await q.query(`select public.submit_closing($1, 630, '{}'::jsonb, null)`, [id]);
+    });
+  });
+
   test("a manager can turn a shift into a full count", async () => {
     const prev = (await db.query<{ id: string }>(`select id from shifts where business_id = $1 and status = 'closing_submitted'`, [biz])).rows[0].id;
     await db.as(MANAGER, (q) => q.query(`select public.review_shift($1, 'approved', null)`, [prev]));

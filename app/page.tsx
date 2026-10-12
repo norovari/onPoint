@@ -23,7 +23,7 @@ const FEATURES: { group: string; items: { t: string; d: string; isNew?: boolean 
   {
     group: "A clear record of every shift",
     items: [
-      { t: "Staff confirmation", d: "Each person answers three short questions, takes photos of the scale readings and cash drawer, and confirms using their own password.", isNew: true },
+      { t: "Staff confirmation", d: "Each person answers three short questions, takes photos of the scale readings and cash drawer, and confirms with their own PIN.", isNew: true },
       { t: "Cash and card checks", d: "OnPoint checks cash and card totals against the till every shift, even when only a few products are counted." },
       { t: "Differences to review", d: "When something doesn’t tally, it stays open until someone records a reason or explains what happened. A manager reviews the shift." },
       { t: "Fair to your team", d: "OnPoint shows differences without blaming anyone. Staff see their own figures; managers and owners can see the full shift." },

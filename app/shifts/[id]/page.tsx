@@ -5,6 +5,7 @@ import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
 import { PosImport } from "@/components/PosImport";
 import { StatementForm } from "@/components/StatementForm";
+import { createServiceClient } from "@/lib/supabase/service";
 import { QUESTIONS, photoLinks, type StatementRow } from "@/lib/statements";
 import { FillLast } from "@/components/FillLast";
 import { OwnerShiftView, type ShiftException } from "@/components/OwnerShiftView";
@@ -39,6 +40,7 @@ const TAG: Record<string, string> = {
   "Didn’t tally recently": "Checked often",
   "Didn't tally recently": "Checked often",
   "Due for a check": "Due for a check",
+  "High value": "High value",
   "Always counted": "Every shift",
   "Full count": "",
 };
@@ -120,6 +122,18 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   const myStatement = statements.some((x) => x.user_id === s.userId);
   const { data: bizSt } = await supabase.from("businesses").select("require_statement").eq("id", s.businessId).single();
   const askStatement = bizSt?.require_statement !== false;
+  // Who still needs to answer: you first, then teammates counting tonight (shared phone)
+  const answered = new Set(statements.map((x) => x.user_id));
+  const candidates = [{ id: s.userId, name: s.fullName || "You", self: true }, ...progress.filter((p) => p.user_id !== s.userId).map((p) => ({ id: p.user_id, name: p.name, self: false }))]
+    .filter((p) => !answered.has(p.id));
+  let pinSet = new Set<string>();
+  if (askStatement && candidates.length) {
+    try {
+      const { data: pins } = await createServiceClient().from("staff_pins").select("user_id").in("user_id", candidates.map((c) => c.id));
+      pinSet = new Set((pins ?? []).map((x) => x.user_id as string));
+    } catch { /* PINs unavailable: password still works */ }
+  }
+  const answerers = candidates.map((c) => ({ ...c, hasPin: pinSet.has(c.id) }));
   const canShare = manager || shift.opened_by === s.userId;
   const { data: teamRows } = canShare && status === "active"
     ? await supabase.from("memberships").select("user_id, profiles(full_name)").eq("business_id", s.businessId).eq("active", true)
@@ -170,6 +184,17 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   const lastReturn = (approvals ?? []).find((a) => a.decision === "returned");
   const pendingMovements = (movements ?? []).filter((m) => m.requires_approval && !m.approved_by);
 
+  // One-glance summary for managers: answers, stock checks, items to review
+  const checkIds = listReasons.size ? [...listReasons.keys()] : (products ?? []).map((p) => p.id);
+  const checksDone = checkIds.filter((pid) => { const c = closing.get(pid); return c && c.source !== "carried"; }).length;
+  const answersDue = askStatement ? Math.max(progress.length, 1) : 0;
+  const toReview = exceptions.filter((e) => e.status === "open" && e.severity !== "info").length;
+  const glance = [
+    answersDue ? { label: "Shift answers", v: `${statements.length} of ${answersDue}`, ok: statements.length >= answersDue } : null,
+    { label: "Stock checks", v: `${checksDone} of ${checkIds.length}`, ok: checksDone >= checkIds.length },
+    showRecon ? { label: "Items to review", v: String(toReview), ok: toReview === 0 } : null,
+  ].filter(Boolean) as { label: string; v: string; ok: boolean }[];
+
   return (
     <Shell businessName={s.businessName}>
       <ol className="steps" aria-label="Shift progress">
@@ -183,6 +208,16 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
         Opened {when(shift.opened_at)}{opener ? ` by ${opener}` : ""}
         {shift.closing_submitted_at ? `. Closed ${when(shift.closing_submitted_at)}${closer ? ` by ${closer}` : ""}.` : "."}
       </p>
+      {manager && status !== "opening" && (
+        <div className="figures glance" aria-label="Shift at a glance">
+          {glance.map((g) => (
+            <div key={g.label} className="figure">
+              <div className="value" style={{ color: `var(--${g.ok ? "matched" : "pending"})` }}>{g.v}</div>
+              <div className="label">{g.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {status === "correction_requested" && lastReturn && (
         <div className="notice error">
@@ -451,7 +486,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
           )}
           <CountSheet shiftId={id} type="closing" products={closingProducts} counts={closing} needsReason={status === "correction_requested"} reasons={closingTags} />
 
-          {askStatement && !myStatement && <StatementForm shiftId={id} questions={QUESTIONS} />}
+          {askStatement && answerers.length > 0 && <StatementForm shiftId={id} questions={QUESTIONS} people={answerers} />}
           {askStatement && myStatement && <p className="notice ok">Your shift answers have been saved.</p>}
           <ActionForm action={submitClosing} hidden={{ shift_id: id }} className="sheet">
             <label htmlFor="counted_cash">Count the cash in the till (R)</label>
@@ -493,7 +528,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       {statements.length > 0 && (
         <section aria-labelledby="st-h">
           <h2 id="st-h">Staff confirmations</h2>
-          <p className="small muted" style={{ marginTop: -4 }}>Each person’s answers, confirmed with their own password.</p>
+          <p className="small muted" style={{ marginTop: -4 }}>Each person’s answers, confirmed with their own PIN or password.</p>
           {statements.map((st) => (
             <div key={st.user_id} className="sheet">
               <p style={{ margin: 0 }}><strong>{st.user_id === s.userId ? "You" : st.name}</strong> <span className="small muted">{new Date(st.created_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" })}</span></p>

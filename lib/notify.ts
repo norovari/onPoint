@@ -17,7 +17,7 @@ export async function sendShiftAlert(input: { to: string[]; businessName: string
     input.problems
       ? `The shift at ${input.businessName} has closed. ${input.problems} thing${input.problems === 1 ? " needs" : "s need"} review.`
       : `The shift at ${input.businessName} has closed. Everything tallied.`,
-    ...(st.length ? ["", "Staff confirmations (each person’s answers, confirmed with their password):", "", ...st.flatMap((x) => [x, ""])] : [""]),
+    ...(st.length ? ["", "Staff confirmations (each person’s answers, confirmed with their own PIN or password):", "", ...st.flatMap((x) => [x, ""])] : [""]),
     link ? `Open the shift to view the photos${input.problems ? " and review any differences" : ""}: ${link}` : "Open OnPoint to see the details.",
     "",
     "OnPoint",

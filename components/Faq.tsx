@@ -81,7 +81,7 @@ const QA: { group: string; items: { q: string; a: React.ReactNode }[] }[] = [
     items: [
       {
         q: "How do I know what really happened on a shift when I’m not there?",
-        a: <p>At close, each person on shift answers three short questions on their phone: was anything sold or given out without being recorded, was there any stock damage or spillage, and is there anything you need to know. They add photos of the jars on the scale and the cash drawer, and confirm with their own password, so the answers are on record under their name. You see every statement and photo on the shift, and in the nightly email.</p>,
+        a: <p>At close, each person on shift answers three short questions on their phone: was anything sold or given out without being recorded, was there any stock damage or spillage, and is there anything you need to know. They add photos of the jars on the scale and the cash drawer, and confirm with their own PIN, so the answers are on record under their name. You see every statement and photo on the shift, and in the nightly email.</p>,
       },
       {
         q: "Will my staff feel accused?",
@@ -135,7 +135,7 @@ export function Faq({ signedIn }: { signedIn: boolean }) {
         <p style={{ margin: "0 0 6px", fontWeight: 800 }}>New, from shop owners’ feedback</p>
         <ul style={{ margin: 0, paddingLeft: 20 }}>
           <li>The count is split at random between whoever is on shift, so everyone counts different products every time.</li>
-          <li>At close, each person answers three quick questions on their phone (anything not rung up, anything happen to stock, anything the owner should know), takes photos of the jars on the scale and the cash drawer, and confirms with their own password.</li>
+          <li>At close, each person answers three quick questions on their phone (anything not rung up, anything happen to stock, anything the owner should know), takes photos of the jars on the scale and the cash drawer, and confirms with their own PIN.</li>
           <li>The owner gets it all in an email that night.</li>
         </ul>
       </div>

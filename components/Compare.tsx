@@ -17,7 +17,7 @@ const ROWS: { what: string; means: string; pos: Cell; ai: Cell; op: Cell }[] = [
   { what: "Count split between staff", means: "Everyone on shift gets different products to check.", pos: N("No"), ai: N("No"), op: Y("At random") },
   { what: "Blind counts", means: "Staff don’t see the expected figure, so they can’t just copy it.", pos: S("Cash only, if set"), ai: S("Depends"), op: Y("Stock and cash") },
   { what: "Jar weighing and bag allowance", means: "Empty jar taken off; a 2.2 g “2 g bag” isn’t flagged, over-filling is.", pos: N("No"), ai: N("No"), op: Y("Per product") },
-  { what: "Staff confirmation", means: "Three questions, photos and each person’s own password at close.", pos: N("No"), ai: N("No"), op: Y("Every close") },
+  { what: "Staff confirmation", means: "Three questions, photos and each person’s own PIN at close.", pos: N("No"), ai: N("No"), op: Y("Every close") },
   { what: "Differences must be explained", means: "Stays open until someone gives a reason and a manager signs off.", pos: N("No"), ai: S("Flags only"), op: Y("Yes") },
   { what: "Supplier orders", means: "Purchase orders to suppliers.", pos: S("Often an add-on"), ai: S("Depends"), op: N("Keep your POS for this") },
 ];

@@ -10,6 +10,7 @@ import type { ParsedLine } from "@/lib/pos/csv";
 import { sha256Hex } from "@/lib/pos/csv";
 import { notifyAdmin, sendShiftAlert } from "@/lib/notify";
 import { checkPhotos, passwordMatches, statementText, storePhotos, type StatementRow } from "@/lib/statements";
+import { LOCK_MINUTES, MAX_TRIES, PIN_RE, hashPin, pinMatches } from "@/lib/pin";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
@@ -683,12 +684,22 @@ export async function setCounters(_: ActionState, f: FormData): Promise<ActionSt
 // End-of-shift statement: three answers, photos, and the person's own password
 export async function submitStatement(_: ActionState, f: FormData): Promise<ActionState> {
   const { supabase, userId, businessId } = await requireSession();
+  const svc = createServiceClient();
   const shiftId = str(f, "shift_id");
   const { data: shift } = await supabase.from("shifts").select("id, status, business_id").eq("id", shiftId).maybeSingle();
   if (!shift || shift.business_id !== businessId) return { error: "Shift not found." };
   if (!["active", "correction_requested"].includes(shift.status)) return { error: "Shift answers can only be saved while the shift is open." };
-  const { data: already } = await supabase.from("shift_statements").select("id").eq("shift_id", shiftId).eq("user_id", userId).maybeSingle();
-  if (already) return { error: "You’ve already saved your shift answers." };
+
+  // Who is answering: the signed-in person, or a teammate on a shared phone (PIN only)
+  const answerer = str(f, "answerer") || userId;
+  const method = str(f, "method") === "pin" ? "pin" : "password";
+  if (answerer !== userId) {
+    if (method !== "pin") return { error: "Teammates confirm with their own PIN." };
+    const { data: m } = await svc.from("memberships").select("user_id").eq("business_id", businessId).eq("user_id", answerer).eq("active", true).maybeSingle();
+    if (!m) return { error: "That person isn’t on your team." };
+  }
+  const { data: already } = await svc.from("shift_statements").select("id").eq("shift_id", shiftId).eq("user_id", answerer).maybeSingle();
+  if (already) return { error: answerer === userId ? "You’ve already saved your shift answers." : "They’ve already saved their shift answers." };
 
   const yes = (k: string) => { const v = str(f, k); return v === "yes" ? true : v === "no" ? false : null; };
   const unrung = yes("unrung"), stockEvent = yes("stock_event");
@@ -702,27 +713,50 @@ export async function submitStatement(_: ActionState, f: FormData): Promise<Acti
   const bad = checkPhotos(photos);
   if (bad) return { error: bad };
 
-  const password = String(f.get("password") ?? "");
-  const { data: me } = await supabase.auth.getUser();
-  if (!password || !me.user?.email || !(await passwordMatches(me.user.email, password))) {
-    return { error: "Your password is incorrect. Use the password you sign in with." };
+  if (method === "pin") {
+    const pin = str(f, "pin");
+    const { data: row } = await svc.from("staff_pins").select("pin_hash, failed, locked_until").eq("user_id", answerer).maybeSingle();
+    if (!row) return { error: "No PIN is set yet. Confirm with your password and set a PIN." };
+    if (row.locked_until && new Date(row.locked_until) > new Date()) {
+      return { error: `Too many wrong tries. Try again in ${LOCK_MINUTES} minutes, or confirm with your password.` };
+    }
+    if (!PIN_RE.test(pin) || !pinMatches(pin, row.pin_hash)) {
+      const failed = row.failed + 1;
+      await svc.from("staff_pins").update({
+        failed: failed >= MAX_TRIES ? 0 : failed,
+        locked_until: failed >= MAX_TRIES ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null,
+      }).eq("user_id", answerer);
+      return { error: failed >= MAX_TRIES ? `Too many wrong tries. PIN locked for ${LOCK_MINUTES} minutes.` : "That PIN isn’t right." };
+    }
+    if (row.failed) await svc.from("staff_pins").update({ failed: 0, locked_until: null }).eq("user_id", answerer);
+  } else {
+    const password = String(f.get("password") ?? "");
+    const { data: me } = await supabase.auth.getUser();
+    if (!password || !me.user?.email || !(await passwordMatches(me.user.email, password))) {
+      return { error: "Your password is incorrect. Use the password you sign in with." };
+    }
+    const newPin = str(f, "new_pin");
+    if (newPin) {
+      if (!PIN_RE.test(newPin)) return { error: "A PIN is 4 to 6 numbers." };
+      await svc.from("staff_pins").upsert({ user_id: userId, pin_hash: hashPin(newPin), failed: 0, locked_until: null, updated_at: new Date().toISOString() });
+    }
   }
 
   let paths: string[];
   try {
-    paths = await storePhotos(`${businessId}/${shiftId}/${userId}`, photos);
+    paths = await storePhotos(`${businessId}/${shiftId}/${answerer}`, photos);
   } catch {
     return { error: "The photos couldn’t upload. Check your connection and try again." };
   }
-  const { error } = await createServiceClient().from("shift_statements").insert({
-    business_id: businessId, shift_id: shiftId, user_id: userId,
+  const { error } = await svc.from("shift_statements").insert({
+    business_id: businessId, shift_id: shiftId, user_id: answerer,
     unrung, unrung_detail: unrung ? unrungDetail : null,
     stock_event: stockEvent, stock_event_detail: stockEvent ? stockDetail : null,
-    notes: notes || null, photos: paths,
+    notes: notes || null, photos: paths, pin_confirmed: method === "pin",
   });
-  if (error) return { error: error.code === "23505" ? "You’ve already saved your shift answers." : "Couldn’t save your shift answers. Try again." };
+  if (error) return { error: error.code === "23505" ? "These shift answers are already saved." : "Couldn’t save the shift answers. Try again." };
   revalidatePath(`/shifts/${shiftId}`);
-  return { ok: "Your shift answers have been saved." };
+  return { ok: answerer === userId ? "Your shift answers have been saved." : "Their shift answers have been saved." };
 }
 
 export async function setRequireStatement(_: ActionState, f: FormData): Promise<ActionState> {
