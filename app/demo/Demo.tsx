@@ -8,41 +8,93 @@ import { LAUNCH_DISCOUNT, PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { SampleReport } from "@/components/SampleReport";
 import { PlanCards } from "@/components/PlanCards";
 
-type Unit = "g" | "each";
-interface Product { id: string; group: string; name: string; unit: Unit; price: number; last: number; received: number; normal: number; special: number; counted: number | null; low: number }
+type Unit = "g" | "ml" | "each";
+// serve: products sold by the tot or bowl. Price is then per serve, stock is in ml or g.
+interface Product { id: string; group: string; name: string; unit: Unit; price: number; serve?: [number, string]; last: number; received: number; normal: number; special: number; counted: number | null; low: number }
 interface Special { id: string; name: string; dealPrice: number; per: number; normalEach: number; deals: number; mix: Record<string, number> }
+type Row = [string, string, Unit, number, number, number, number, number, ([number, string])?];
 
-const START: [string, string, Unit, number, number, number, number, number][] = [
+export type Kit = {
+  kind: "dispensary" | "bar";
+  start: Row[]; specials: Special[]; card: number; float: number; usualDay: number;
+  staff: string; closedAt: string; itemWord: string; defaultName: string;
+  staffHint: string; report: boolean;
+};
+
+const DISPENSARY: Kit = {
+  kind: "dispensary",
   // group, name, unit, price, last shift count, sold at normal price, counted now, low-stock level
-  ["Flower", "Outdoor flower", "g", 25, 120, 40, 80, 30],
-  ["Flower", "Greenhouse flower", "g", 50, 50, 15, 34, 20],
-  ["Flower", "Indoor A flower", "g", 80, 40, 10, 30, 15],
-  ["Flower", "Indoor AAA flower", "g", 120, 30, 10, 17, 15],
-  ["Pre-rolls", "Indoor pre-roll: Blue Dream", "each", 100, 4, 2, 6, 5],
-  ["Pre-rolls", "Indoor pre-roll: OG Kush", "each", 100, 10, 1, 4, 5],
-  ["Pre-rolls", "Indoor pre-roll: Lemon Haze", "each", 100, 8, 1, 4, 5],
-  ["Pre-rolls", "Greenhouse pre-roll: Gelato", "each", 50, 20, 2, 7, 5],
-  ["Pre-rolls", "Greenhouse pre-roll: Cheese", "each", 50, 15, 1, 6, 5],
-  ["Edibles", "Gummies 10 pack", "each", 130, 15, 5, 10, 5],
-  ["Edibles", "Brownie", "each", 120, 10, 3, 6, 4],
-  ["Vapes & extracts", "1ml vape cartridge", "each", 300, 8, 2, 6, 3],
-  ["Vapes & extracts", "Rosin 1g", "each", 600, 5, 1, 4, 5],
-];
-const SPECIALS: Special[] = [
-  { id: "s1", name: "Indoor pre-rolls, 2 for R180", dealPrice: 180, per: 2, normalEach: 100, deals: 7,
-    mix: { "Indoor pre-roll: Blue Dream": 6, "Indoor pre-roll: OG Kush": 5, "Indoor pre-roll: Lemon Haze": 3 } },
-  { id: "s2", name: "Greenhouse pre-rolls, 2 for R90", dealPrice: 90, per: 2, normalEach: 50, deals: 9,
-    mix: { "Greenhouse pre-roll: Gelato": 11, "Greenhouse pre-roll: Cheese": 8 } },
-];
-const TILL_CARD = 3200;
-const FLOAT = 500;
-const USUAL_DAY = 8800;
+  start: [
+    ["Flower", "Outdoor flower", "g", 25, 120, 40, 80, 30],
+    ["Flower", "Greenhouse flower", "g", 50, 50, 15, 34, 20],
+    ["Flower", "Indoor A flower", "g", 80, 40, 10, 30, 15],
+    ["Flower", "Indoor AAA flower", "g", 120, 30, 10, 17, 15],
+    ["Pre-rolls", "Indoor pre-roll: Blue Dream", "each", 100, 4, 2, 6, 5],
+    ["Pre-rolls", "Indoor pre-roll: OG Kush", "each", 100, 10, 1, 4, 5],
+    ["Pre-rolls", "Indoor pre-roll: Lemon Haze", "each", 100, 8, 1, 4, 5],
+    ["Pre-rolls", "Greenhouse pre-roll: Gelato", "each", 50, 20, 2, 7, 5],
+    ["Pre-rolls", "Greenhouse pre-roll: Cheese", "each", 50, 15, 1, 6, 5],
+    ["Edibles", "Gummies 10 pack", "each", 130, 15, 5, 10, 5],
+    ["Edibles", "Brownie", "each", 120, 10, 3, 6, 4],
+    ["Vapes & extracts", "1ml vape cartridge", "each", 300, 8, 2, 6, 3],
+    ["Vapes & extracts", "Rosin 1g", "each", 600, 5, 1, 4, 5],
+  ],
+  specials: [
+    { id: "s1", name: "Indoor pre-rolls, 2 for R180", dealPrice: 180, per: 2, normalEach: 100, deals: 7,
+      mix: { "Indoor pre-roll: Blue Dream": 6, "Indoor pre-roll: OG Kush": 5, "Indoor pre-roll: Lemon Haze": 3 } },
+    { id: "s2", name: "Greenhouse pre-rolls, 2 for R90", dealPrice: 90, per: 2, normalEach: 50, deals: 9,
+      mix: { "Greenhouse pre-roll: Gelato": 11, "Greenhouse pre-roll: Cheese": 8 } },
+  ],
+  card: 3200, float: 500, usualDay: 8800,
+  staff: "Thandi", closedAt: "18:02", itemWord: "pre-rolls", defaultName: "Your dispensary",
+  staffHint: "Weighed products are counted in grams.", report: true,
+};
 
-const freshProducts = (): Product[] =>
-  START.map(([group, name, unit, price, last, normal, counted, low], i) => ({
-    id: `p${i}`, group, name, unit, price, last, received: 0, normal,
-    special: SPECIALS.reduce((a, s) => a + (s.mix[name] ?? 0), 0), counted, low,
+const BAR: Kit = {
+  kind: "bar",
+  // Spirits: stock in ml, price per 25ml tot. Hookah: stock in grams, price per bowl.
+  start: [
+    ["Spirits", "Jameson Irish whiskey", "ml", 35, 1800, 600, 1130, 750, [25, "tot"]],
+    ["Spirits", "Smirnoff vodka", "ml", 25, 1500, 750, 750, 500, [25, "tot"]],
+    ["Spirits", "Olmeca tequila", "ml", 30, 1000, 375, 625, 500, [25, "tot"]],
+    ["Spirits", "Klipdrift brandy", "ml", 25, 1500, 500, 975, 500, [25, "tot"]],
+    ["Spirits", "Jägermeister", "ml", 30, 800, 350, 450, 500, [25, "tot"]],
+    ["Beer & cider", "Castle Lite", "each", 30, 72, 18, 40, 24],
+    ["Beer & cider", "Black Label", "each", 30, 48, 10, 26, 24],
+    ["Beer & cider", "Heineken", "each", 35, 24, 8, 16, 12],
+    ["Beer & cider", "Savanna Dry", "each", 38, 48, 6, 33, 24],
+    ["Beer & cider", "Hunter’s Dry", "each", 38, 36, 4, 24, 12],
+    ["Soft drinks & mixers", "Coke 330ml", "each", 20, 48, 22, 26, 12],
+    ["Soft drinks & mixers", "Red Bull", "each", 35, 24, 9, 15, 12],
+    ["Soft drinks & mixers", "Tonic water", "each", 20, 24, 10, 14, 12],
+    ["Hookah", "Hookah tobacco: Double Apple", "g", 180, 250, 90, 150, 100, [15, "bowl"]],
+    ["Hookah", "Hookah tobacco: Mint", "g", 180, 200, 60, 140, 100, [15, "bowl"]],
+  ],
+  specials: [
+    { id: "s1", name: "Beer bucket, 5 for R125", dealPrice: 125, per: 5, normalEach: 30, deals: 5,
+      mix: { "Castle Lite": 14, "Black Label": 12 } },
+    { id: "s2", name: "Any 2 ciders for R70", dealPrice: 70, per: 2, normalEach: 38, deals: 8,
+      mix: { "Savanna Dry": 9, "Hunter’s Dry": 7 } },
+  ],
+  card: 5200, float: 1000, usualDay: 7600,
+  staff: "Sipho", closedAt: "02:14", itemWord: "drinks", defaultName: "Your lounge",
+  staffHint: "Spirits are counted in ml: put the open bottle on the scale and OnPoint works out what’s left. Hookah tobacco is weighed in grams.",
+  report: false,
+};
+export const KITS = { dispensary: DISPENSARY, bar: BAR };
+
+const freshProducts = (k: Kit): Product[] =>
+  k.start.map(([group, name, unit, price, last, normal, counted, low, serve], i) => ({
+    id: `p${i}`, group, name, unit, price, serve, last, received: 0, normal,
+    special: k.specials.reduce((a, s) => a + (s.mix[name] ?? 0), 0), counted, low,
   }));
+const perUnit = (p: Product) => (p.serve ? p.price / p.serve[0] : p.price);
+// "about 3 tots" for serve products
+const serves = (p: Product, v: number) => {
+  if (!p.serve) return "";
+  const n = Math.round(Math.abs(v) / p.serve[0]);
+  return n >= 1 ? ` (about ${n} ${p.serve[1]}${n === 1 ? "" : "s"})` : "";
+};
 
 const t10 = (v: number) => Math.round(v * 10);
 function rand(v: number, signed = false) {
@@ -55,17 +107,18 @@ function qty(v: number | null, unit: Unit, signed = false) {
   if (v === null) return "—";
   const n = Math.round(v * 10) / 10;
   const sign = signed ? (n > 0 ? "+" : n < 0 ? "−" : "") : n < 0 ? "−" : "";
-  return unit === "g" ? `${sign}${Math.abs(n)}g` : `${sign}${Math.abs(n)}`;
+  return unit === "each" ? `${sign}${Math.abs(n)}` : `${sign}${Math.abs(n)}${unit}`;
 }
 
-function calc(products: Product[], cashCounted: number, cardMachine: number) {
+function calc(k: Kit, products: Product[], cashCounted: number, cardMachine: number) {
+  const SPECIALS = k.specials, TILL_CARD = k.card, FLOAT = k.float;
   const rows = products.map((p) => {
     const sold = p.normal + p.special;
     const should = (t10(p.last) + t10(p.received) - t10(sold)) / 10;
     const diff = p.counted === null ? null : (t10(p.counted) - t10(should)) / 10;
     const specialMade = SPECIALS.reduce((a, s) => a + (s.mix[p.name] ?? 0) * (s.dealPrice / s.per), 0);
-    const made = Math.round(p.normal * p.price + specialMade);
-    const missingValue = diff !== null && diff < 0 ? Math.round(-diff * p.price) : 0;
+    const made = Math.round(p.normal * perUnit(p) + specialMade);
+    const missingValue = diff !== null && diff < 0 ? Math.round(-diff * perUnit(p)) : 0;
     return { ...p, sold, should, diff, made, specialMade: Math.round(specialMade), missingValue, minus: should < 0, lowNext: p.counted !== null && p.counted <= p.low };
   });
   const specials = SPECIALS.map((s) => {
@@ -92,14 +145,15 @@ function calc(products: Product[], cashCounted: number, cardMachine: number) {
 type Calc = ReturnType<typeof calc>;
 interface Alert { id: string; level: "variance" | "pending"; title: string; amount: string; body: string; actions: [string, string][] }
 
-function alertsFor(c: Calc, closedBy: string): Alert[] {
+function alertsFor(k: Kit, c: Calc): Alert[] {
+  const FLOAT = k.float, TILL_CARD = k.card;
   const list: Alert[] = [];
   const missing = c.rows.filter((r) => r.diff !== null && r.diff < 0);
   if (missing.length) list.push({ id: "stock", level: "variance", title: "Stock difference found", amount: rand(c.missingTotal),
-    body: `The stock counted is less than expected: ${missing.map((r) => `${r.name} ${qty(-r.diff!, r.unit)}`).join(", ")}. At your selling prices that is worth ${rand(c.missingTotal)}. Check the figures and record what happened.`,
+    body: `The stock counted is less than expected: ${missing.map((r) => `${r.name} ${qty(-r.diff!, r.unit)}${serves(r, r.diff!)}`).join(", ")}. At your selling prices that is worth ${rand(c.missingTotal)}. Check the figures and record what happened.`,
     actions: [["recount", "Ask for a recount"], ["explain", "Add an explanation"]] });
   c.specials.filter((s) => s.extra !== 0).forEach((s) => list.push({ id: `sp-${s.id}`, level: "variance", title: "Special offer doesn’t tally", amount: `${s.extra > 0 ? "+" : "−"}${Math.abs(s.extra)}`,
-    body: `${s.name}: ${s.deals} deals should mean ${s.shouldUnits} pre-rolls went out, but ${s.units} did. ${s.extra > 0 ? `${s.extra} extra, worth ${rand(s.extra * s.normalEach)} at the normal price.` : ""}`,
+    body: `${s.name}: ${s.deals} deals should mean ${s.shouldUnits} ${k.itemWord} went out, but ${s.units} did. ${s.extra > 0 ? `${s.extra} extra, worth ${rand(s.extra * s.normalEach)} at the normal price.` : ""}`,
     actions: [["specials", "View special"], ["explain", "Add an explanation"]] }));
   if (c.cashDiff !== 0) list.push({ id: "cash", level: "variance", title: "Cash difference found", amount: rand(c.cashDiff, true),
     body: `The till expected ${rand(c.cashShould)} in cash (${rand(FLOAT)} float plus ${rand(c.tillCash)} cash sales), but the count was ${rand(c.cashShould + c.cashDiff)}.`,
@@ -118,8 +172,11 @@ const groups = <T extends { group: string }>(rows: T[]) => [...new Set(rows.map(
 const TABS = [["alerts", "Needs review"], ["specials", "Today’s specials"], ["last", "Last shift’s stock"], ["now", "Stock on hand"], ["made", "Product earnings"], ["next", "Stock for next shift"], ["report", "Monthly report"]] as const;
 type Tab = (typeof TABS)[number][0];
 
-export default function Demo({ businessName }: { businessName: string }) {
-  const [products, setProducts] = useState(freshProducts);
+export default function Demo({ businessName, kind = "dispensary" }: { businessName: string; kind?: Kit["kind"] }) {
+  const k = KITS[kind];
+  const TILL_CARD = k.card, FLOAT = k.float, USUAL_DAY = k.usualDay;
+  const tabs = TABS.filter(([t]) => k.report || t !== "report");
+  const [products, setProducts] = useState(() => freshProducts(k));
   const [cashCounted, setCashCounted] = useState<number | null>(null);
   const [cardMachine, setCardMachine] = useState(TILL_CARD);
   const [view, setView] = useState<"owner" | "staff">("owner");
@@ -132,13 +189,13 @@ export default function Demo({ businessName }: { businessName: string }) {
   // A link ending in #report opens the sample monthly report straight away
   useEffect(() => {
     const h = window.location.hash.slice(1);
-    if (TABS.some(([k]) => k === h)) setTab(h as Tab);
+    if (tabs.some(([t]) => t === h)) setTab(h as Tab);
   }, []);
 
-  const base = useMemo(() => calc(products, 0, cardMachine), [products, cardMachine]);
+  const base = useMemo(() => calc(k, products, 0, cardMachine), [k, products, cardMachine]);
   const cash = cashCounted ?? base.cashShould - 110; // sample: R110 short
-  const c = useMemo(() => calc(products, cash, cardMachine), [products, cash, cardMachine]);
-  const alerts = alertsFor(c, "Thandi");
+  const c = useMemo(() => calc(k, products, cash, cardMachine), [k, products, cash, cardMachine]);
+  const alerts = alertsFor(k, c);
   const open = alerts.filter((a) => !fixed[a.id]);
 
   const say = (m: string) => { setToast(m); window.setTimeout(() => setToast(null), 2600); };
@@ -163,13 +220,13 @@ export default function Demo({ businessName }: { businessName: string }) {
     const cashV = Number(f.get("cash")), cardV = Number(f.get("card"));
     if (next.some((p) => p.counted !== null && (Number.isNaN(p.counted) || p.counted < 0)) || Number.isNaN(cashV) || Number.isNaN(cardV)) return say("Use numbers only, like 34 or 2.5.");
     setProducts(next); setCashCounted(cashV); setCardMachine(cardV);
-    const after = calc(next, cashV, cardV);
-    const bad = alertsFor(after, "Thandi").filter((a) => a.level === "variance");
+    const after = calc(k, next, cashV, cardV);
+    const bad = alertsFor(k, after).filter((a) => a.level === "variance");
     setFixed({}); setView("owner"); setTab("alerts"); window.scrollTo(0, 0);
     setBanner(bad.length ? `${businessName}: shift needs review. ${bad.length} difference${bad.length === 1 ? "" : "s"}${after.missingTotal ? `, ${rand(after.missingTotal)} stock difference` : ""}${after.cashDiff ? `, cash ${rand(after.cashDiff, true)}` : ""}.` : `${businessName}: everything tallied.`);
   }
 
-  const signup = `/signup?b=${encodeURIComponent(businessName)}`;
+  const signup = `/signup?b=${encodeURIComponent(businessName)}${kind === "bar" ? "&t=bar" : ""}`;
 
   return (
     <>
@@ -182,7 +239,7 @@ export default function Demo({ businessName }: { businessName: string }) {
       </header>
       <main className="wrap">
         <h1 style={{ marginTop: 8 }}>{businessName}</h1>
-        <p className="muted" style={{ marginTop: 0 }}>Shift closed at 18:02 by Thandi</p>
+        <p className="muted" style={{ marginTop: 0 }}>Shift closed at {k.closedAt} by {k.staff}</p>
 
         {banner && (
           <div className="sheet" role="status" style={{ borderWidth: 2, borderColor: "var(--ink)" }}>
@@ -200,9 +257,9 @@ export default function Demo({ businessName }: { businessName: string }) {
         {view === "owner" && (
           <>
             <nav className="nav" aria-label="Owner screens" style={{ margin: "12px 0" }}>
-              {TABS.map(([k, l]) => (
-                <a key={k} href={`#${k}`} aria-current={tab === k ? "page" : undefined} onClick={(e) => { e.preventDefault(); setTab(k); }}>
-                  {l}{k === "alerts" && open.length ? ` (${open.length})` : ""}
+              {tabs.map(([t, l]) => (
+                <a key={t} href={`#${t}`} aria-current={tab === t ? "page" : undefined} onClick={(e) => { e.preventDefault(); setTab(t); }}>
+                  {l}{t === "alerts" && open.length ? ` (${open.length})` : ""}
                 </a>
               ))}
             </nav>
@@ -311,7 +368,7 @@ export default function Demo({ businessName }: { businessName: string }) {
                         <li key={r.id} className="line" data-status={st}>
                           <span className="name">{r.name}</span>
                           <span className="diff" data-status={st} style={{ fontSize: 20 }}>{r.diff === null ? "Not counted" : r.diff === 0 ? "Tallies" : qty(r.diff, r.unit, true)}</span>
-                          <span className="meta">Counted {qty(r.counted, r.unit)}, should have {qty(r.should, r.unit)}{r.missingValue ? `. Worth ${rand(r.missingValue)}` : ""}{r.minus ? ". Went into minus" : ""}</span>
+                          <span className="meta">Counted {qty(r.counted, r.unit)}, should have {qty(r.should, r.unit)}{r.missingValue ? `. Worth ${rand(r.missingValue)}${serves(r, r.diff!)}` : ""}{r.minus ? ". Went into minus" : ""}</span>
                         </li>
                       );
                     })}
@@ -326,7 +383,7 @@ export default function Demo({ businessName }: { businessName: string }) {
                 <ul className="lines">
                   {[...c.rows].sort((a, b) => b.made - a.made).map((r) => (
                     <li key={r.id} className="line"><span className="name">{r.name}</span><span className="diff" style={{ fontSize: 20 }}>{rand(r.made)}</span>
-                      <span className="meta">{r.special ? `${r.normal} at ${rand(r.price)} plus ${r.special} on special (${rand(r.specialMade)})` : `${qty(r.normal, r.unit)} sold at ${rand(r.price)}${r.unit === "g" ? " a gram" : " each"}`}</span></li>
+                      <span className="meta">{r.special ? `${r.normal} at ${rand(r.price)} plus ${r.special} on special (${rand(r.specialMade)})` : r.serve ? `${Math.round(r.normal / r.serve[0])} ${r.serve[1]}s at ${rand(r.price)} (${r.serve[0]}${r.unit} each)` : `${qty(r.normal, r.unit)} sold at ${rand(r.price)}${r.unit === "g" ? " a gram" : " each"}`}</span></li>
                   ))}
                 </ul>
                 <h2>Do the cash and card totals tally?</h2>
@@ -345,7 +402,7 @@ export default function Demo({ businessName }: { businessName: string }) {
               </>
             )}
 
-            {tab === "report" && <SampleReport businessName={businessName} />}
+            {tab === "report" && k.report && <SampleReport businessName={businessName} />}
 
             {tab === "next" && (
               <>
@@ -362,9 +419,9 @@ export default function Demo({ businessName }: { businessName: string }) {
 
         {view === "staff" && (
           <form onSubmit={submitStaff}>
-            <p style={{ margin: "0 0 4px", fontWeight: 700 }}>Hi, Thandi. Ready to close?</p>
+            <p style={{ margin: "0 0 4px", fontWeight: 700 }}>Hi, {k.staff}. Ready to close?</p>
             <h2 style={{ marginTop: 0 }}>Close your shift</h2>
-            <p className="muted small">Count the stock assigned to you. You won’t see the expected figures, so your count stays fair. Weighed products are counted in grams.</p>
+            <p className="muted small">Count the stock assigned to you. You won’t see the expected figures, so your count stays fair. {k.staffHint}</p>
             {groups(products).map(([g, rows]) => (
               <div key={g}><h3 style={{ margin: "16px 0 6px" }}>{g}</h3><ul className="lines">
                 {rows.map((p) => (
@@ -386,14 +443,14 @@ export default function Demo({ businessName }: { businessName: string }) {
           </form>
         )}
 
-        <PlanCards signup={signup} name={businessName === "Your dispensary" ? "" : businessName} />
+        <PlanCards signup={signup} name={businessName === k.defaultName ? "" : businessName} />
 
         <div className="sheet" style={{ marginTop: 28, borderWidth: 2 }}>
           <h2 style={{ marginTop: 0 }}>Try OnPoint in your shop</h2>
           <p>{TRIAL_DAYS} days of everything free, then from R{PLANS[1].price} a month. Subscribe before your trial ends and your first {LAUNCH_DISCOUNT.months} months are {LAUNCH_DISCOUNT.pct}% off.</p>
           <Link href={signup} className="button" style={{ width: "100%" }}>Start free</Link>
-          {tab !== "report" && <button type="button" className="quiet" style={{ width: "100%", marginTop: 10 }} onClick={() => { setView("owner"); setTab("report"); window.scrollTo(0, 0); }}>View a sample monthly report</button>}
-          <p className="small muted" style={{ marginBottom: 0 }}><button type="button" className="quiet" style={{ marginTop: 10 }} onClick={() => { setProducts(freshProducts()); setCashCounted(null); setCardMachine(TILL_CARD); setFixed({}); setBanner(null); setView("owner"); setTab("alerts"); }}>Start again</button></p>
+          {tab !== "report" && k.report && <button type="button" className="quiet" style={{ width: "100%", marginTop: 10 }} onClick={() => { setView("owner"); setTab("report"); window.scrollTo(0, 0); }}>View a sample monthly report</button>}
+          <p className="small muted" style={{ marginBottom: 0 }}><button type="button" className="quiet" style={{ marginTop: 10 }} onClick={() => { setProducts(freshProducts(k)); setCashCounted(null); setCardMachine(TILL_CARD); setFixed({}); setBanner(null); setView("owner"); setTab("alerts"); }}>Start again</button></p>
         </div>
       </main>
       {toast && <div role="status" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 24, background: "var(--ink)", color: "var(--paper)", padding: "10px 16px", borderRadius: 999, fontSize: 15, zIndex: 20, maxWidth: "calc(100% - 32px)", textAlign: "center" }}>{toast}</div>}
