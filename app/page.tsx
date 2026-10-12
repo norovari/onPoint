@@ -119,7 +119,7 @@ export default async function Home() {
           </p>
           <Link href="/signup" className="button" style={{ width: "100%" }}>Start my free {TRIAL_DAYS} days</Link>
           <p className="small" style={{ margin: "10px 0 0" }}>
-            <Link href="/pricing">Compare plans</Link> · <Link href="/faq">Questions</Link> · <a href="https://wa.me/27696425639">WhatsApp us</a>
+            <Link href="/pricing">Compare plans</Link> · <Link href="/faq">Questions</Link> · <a href="https://wa.me/27836443953">WhatsApp us</a>
           </p>
         </div>
 

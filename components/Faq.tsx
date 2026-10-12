@@ -5,7 +5,7 @@ import { LAUNCH_DISCOUNT, PLANS, TRIAL_DAYS } from "@/lib/plans";
 // Questions shop owners actually ask, in their words. Shown on /faq (public
 // and inside the app). Keep every answer true to what the app does today.
 
-export const WHATSAPP = "27696425639";
+export const WHATSAPP = "27836443953";
 const rand = (n: number) => `R${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}`;
 const paid = PLANS.filter((p) => p.price > 0);
 
@@ -157,7 +157,7 @@ export function Faq({ signedIn }: { signedIn: boolean }) {
       <div className="sheet" style={{ marginTop: 24 }}>
         <h2 style={{ marginTop: 0 }}>Still have a question?</h2>
         <p>Message us on WhatsApp and a person will reply.</p>
-        <a className="button" href={`https://wa.me/${WHATSAPP}`} style={{ width: "100%" }}>WhatsApp +27 69 642 5639</a>
+        <a className="button" href={`https://wa.me/${WHATSAPP}`} style={{ width: "100%" }}>WhatsApp +27 83 644 3953</a>
         {!signedIn && (
           <p className="small" style={{ marginTop: 10 }}>
             <Link href="/demo">Try the demo</Link> · <Link href="/signup">Start {TRIAL_DAYS} days free</Link>
