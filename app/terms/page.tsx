@@ -29,6 +29,7 @@ export default function Terms() {
         <h2>Your data</h2>
         <p>Your stock, sales, cash and staff records belong to you. Only people you add to your team can see them in OnPoint. Our admin view shows your business name, contact email, plan, payments and activity counts (such as shifts closed and number of open alerts). It does not show your figures.</p>
         <p>We process personal information (names and email addresses of you and your staff, and records of who did what in each shift) only to provide the service, in line with the Protection of Personal Information Act. We don’t sell it or use it for marketing. Data is hosted with our cloud providers and backed up. Ask us to export or delete your data at any time.</p>
+        <p>To improve the website we count page visits without cookies (Vercel Web Analytics), and we note when a personal demo link is opened and which parts of the demo are used. This doesn’t identify you personally.</p>
         <p>Tell your staff that OnPoint records their counts and actions. Card details are handled by our payment provider; OnPoint never sees or stores card numbers.</p>
 
         <h2>Availability</h2>

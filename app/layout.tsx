@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: { default: "OnPoint – Dispensary Tracker", template: "%s · OnPoint" },
@@ -34,7 +35,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700;800&display=swap"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Page-visit counts (no cookies). Starts counting once Analytics is enabled in Vercel. */}
+        <Analytics />
+      </body>
     </html>
   );
 }
