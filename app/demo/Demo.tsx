@@ -186,6 +186,25 @@ export default function Demo({ businessName, kind = "dispensary" }: { businessNa
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  // Engagement: which personal demos get opened, and how far people go.
+  // Open any demo once with #me on the end to stop counting your own visits.
+  const track = (event: string) => {
+    try {
+      if (window.location.hash === "#me") localStorage.setItem("op_me", "1");
+      if (localStorage.getItem("op_me")) return;
+      let v = localStorage.getItem("op_v");
+      if (!v) { v = Math.random().toString(36).slice(2, 12); localStorage.setItem("op_v", v); }
+      const key = `op_${event}_${businessName}`;
+      if (sessionStorage.getItem(key)) return; // once per visit
+      sessionStorage.setItem(key, "1");
+      const body = JSON.stringify({ shop: businessName, kind, event, visitor: v });
+      if (!navigator.sendBeacon?.("/api/demo-event", new Blob([body], { type: "text/plain" }))) fetch("/api/demo-event", { method: "POST", body, keepalive: true }).catch(() => {});
+    } catch { /* storage blocked: skip counting */ }
+  };
+  useEffect(() => { track("open"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (view === "staff") track("staff"); }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === "report") track("report"); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // A link ending in #report opens the sample monthly report straight away
   useEffect(() => {
     const h = window.location.hash.slice(1);
@@ -219,25 +238,26 @@ export default function Demo({ businessName, kind = "dispensary" }: { businessNa
     });
     const cashV = Number(f.get("cash")), cardV = Number(f.get("card"));
     if (next.some((p) => p.counted !== null && (Number.isNaN(p.counted) || p.counted < 0)) || Number.isNaN(cashV) || Number.isNaN(cardV)) return say("Use numbers only, like 34 or 2.5.");
-    setProducts(next); setCashCounted(cashV); setCardMachine(cardV);
+    setProducts(next); setCashCounted(cashV); setCardMachine(cardV); track("submit");
     const after = calc(k, next, cashV, cardV);
     const bad = alertsFor(k, after).filter((a) => a.level === "variance");
     setFixed({}); setView("owner"); setTab("alerts"); window.scrollTo(0, 0);
     setBanner(bad.length ? `${businessName}: shift needs review. ${bad.length} difference${bad.length === 1 ? "" : "s"}${after.missingTotal ? `, ${rand(after.missingTotal)} stock difference` : ""}${after.cashDiff ? `, cash ${rand(after.cashDiff, true)}` : ""}.` : `${businessName}: everything tallied.`);
   }
 
+  const onSignup = (e: React.MouseEvent) => { if ((e.target as HTMLElement).closest('a[href^="/signup"]')) track("signup"); };
   const signup = `/signup?b=${encodeURIComponent(businessName)}${kind === "bar" ? "&t=bar" : ""}`;
 
   return (
     <>
-      <div style={{ background: "var(--ink)", color: "var(--paper)", fontSize: 14, padding: "8px 16px", textAlign: "center" }}>
+      <div onClickCapture={onSignup} style={{ background: "var(--ink)", color: "var(--paper)", fontSize: 14, padding: "8px 16px", textAlign: "center" }}>
         Sample shift. These figures are examples. <a href="#prices" style={{ color: "var(--paper)", fontWeight: 700 }}>See plans</a> · <Link href={signup} style={{ color: "var(--paper)", fontWeight: 700 }}>Start free</Link>
       </div>
       <header className="topbar">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>On<b>Point</b></Link>
         <nav className="nav"><a href="#prices">Prices</a><Link href="/faq">Questions</Link><Link href="/login">Sign in</Link></nav>
       </header>
-      <main className="wrap">
+      <main className="wrap" onClickCapture={onSignup}>
         <h1 style={{ marginTop: 8 }}>{businessName}</h1>
         <p className="muted" style={{ marginTop: 0 }}>Shift closed at {k.closedAt} by {k.staff}</p>
 

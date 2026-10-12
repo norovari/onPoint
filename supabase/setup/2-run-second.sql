@@ -2651,3 +2651,21 @@ grant execute on function public.pos_connection(uuid) to authenticated;
 -- so no density table is needed and liqueurs work as well as spirits.
 alter table public.products add column if not exists full_weight numeric(10,3) check (full_weight is null or full_weight > 0);
 alter table public.products add column if not exists bottle_ml numeric(10,3) check (bottle_ml is null or bottle_ml > 0);
+
+-- 20261012000024_demo_events.sql
+-- Demo engagement: which personal demo links get opened and how far people go.
+-- Written by /api/demo-event with the service role; read on the admin page.
+-- No policies: the browser can't read or write this table directly.
+create table if not exists public.demo_events (
+  id         bigint generated always as identity primary key,
+  shop       text not null check (length(shop) between 1 and 80),
+  kind       text not null check (kind in ('dispensary', 'bar')),
+  event      text not null check (event in ('open', 'staff', 'submit', 'report', 'signup')),
+  visitor    text check (visitor is null or length(visitor) <= 40),
+  mobile     boolean,
+  created_at timestamptz not null default now()
+);
+alter table public.demo_events enable row level security;
+create index if not exists demo_events_created_idx on public.demo_events (created_at desc);
+revoke all on public.demo_events from anon, authenticated;
+grant select, insert on public.demo_events to service_role;

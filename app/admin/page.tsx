@@ -6,6 +6,7 @@ import { adminSetPlan } from "@/app/actions";
 import { planName } from "@/lib/plans";
 import { formatZar } from "@/lib/calculations";
 import { when } from "@/lib/labels";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const metadata = { title: "Admin" };
 
@@ -40,6 +41,26 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   const trials = allAccounts.filter((a) => a.status === "trialing" && a.effective_plan !== "free");
   const totalPaid = allAccounts.reduce((s, a) => s + Number(a.total_paid), 0);
 
+  // Demo engagement over the last 7 days, one row per shop (newest first)
+  type Ev = { shop: string; kind: string; event: string; visitor: string | null; created_at: string };
+  let events: Ev[] = [];
+  try {
+    const since = new Date(Date.now() - 7 * 864e5).toISOString();
+    const { data } = await createServiceClient().from("demo_events").select("shop, kind, event, visitor, created_at").gte("created_at", since).order("created_at", { ascending: false }).limit(2000);
+    events = (data ?? []) as Ev[];
+  } catch { /* service key missing locally */ }
+  const demos = new Map<string, { shop: string; kind: string; last: string; visitors: Set<string>; opens: number; did: Set<string> }>();
+  for (const e of events) {
+    const k = `${e.kind}|${e.shop.toLowerCase()}`;
+    const d = demos.get(k) ?? { shop: e.shop, kind: e.kind, last: e.created_at, visitors: new Set(), opens: 0, did: new Set() };
+    if (e.visitor) d.visitors.add(e.visitor);
+    if (e.event === "open") d.opens++; else d.did.add(e.event);
+    demos.set(k, d);
+  }
+  const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" }) + "T00:00:00+02:00").getTime();
+  const openedToday = new Set(events.filter((e) => e.event === "open" && new Date(e.created_at).getTime() >= todayStart).map((e) => `${e.kind}|${e.shop.toLowerCase()}`)).size;
+  const DID: Record<string, string> = { staff: "tried staff view", submit: "submitted a close", report: "opened the report", signup: "tapped Start free" };
+
   return (
     <Shell>
       <h1>OnPoint admin</h1>
@@ -59,6 +80,26 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <button type="submit" className="quiet">Search</button>
         {search && <a href="/admin" className="small">Clear</a>}
       </form>
+
+      <h2>Demo visits</h2>
+      <p className="muted small">Personal demo links opened in the last 7 days ({openedToday} today). Link previews in WhatsApp aren’t counted. Open any demo once with <code>#me</code> on the end so your own visits aren’t counted.</p>
+      {demos.size === 0 ? <p className="muted">No demo visits recorded yet.</p> : (
+        <div className="scroll">
+          <table className="data">
+            <thead><tr><th>Shop</th><th>Last opened</th><th className="num">Visits</th><th>Went on to</th></tr></thead>
+            <tbody>
+              {[...demos.values()].map((d) => (
+                <tr key={`${d.kind}|${d.shop}`}>
+                  <td>{d.shop}{d.kind === "bar" ? <span className="muted small"> (bar)</span> : null}</td>
+                  <td>{when(d.last)}</td>
+                  <td className="num">{d.opens}{d.visitors.size > 1 ? ` (${d.visitors.size} people)` : ""}</td>
+                  <td className="small">{[...d.did].map((x) => DID[x]).join(", ") || <span className="muted">just looked</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <h2>Payments</h2>
       {payments.length === 0 ? <p className="muted">{search ? "No payments match." : "No payments yet."}</p> : (
