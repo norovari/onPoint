@@ -18,6 +18,8 @@ interface Account {
 }
 interface Pay { id: string; subscription_ref: string; business: string; plan: string; reference: string; amount: number; discount_pct: number; status: string; created_at: string; paid_at: string | null }
 
+type Agri = { id: string; created_at: string; farmer: string; farm: string | null; phone: string; province: string; town: string | null; crop: string; qty: string; unit: string; price: string | null; available_from: string | null; delivery: string; notes: string | null };
+
 // Only the confirmed nyorovai@gmail.com sign-in passes this check (enforced in the database too).
 export default async function Admin({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const search = ((await searchParams).q ?? "").trim().toLowerCase();
@@ -31,6 +33,8 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     supabase.rpc("admin_overview"),
     supabase.rpc("admin_invoices", { p_status: "all" }),
   ]);
+  const { data: agri } = await supabase.rpc("admin_agri_listings");
+  const listings = (agri ?? []) as Agri[];
   const allAccounts = (overview ?? []) as Account[];
   const allPayments = (pending ?? []) as Pay[];
   const match = (...v: (string | null)[]) => !search || v.some((x) => (x ?? "").toLowerCase().includes(search));
@@ -94,6 +98,32 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                   <td>{when(d.last)}</td>
                   <td className="num">{d.opens}{d.visitors.size > 1 ? ` (${d.visitors.size} people)` : ""}</td>
                   <td className="small">{[...d.did].map((x) => DID[x]).join(", ") || <span className="muted">just looked</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2>AgriLink listings</h2>
+      <p className="muted small">Produce farmers listed at <a href="/agrilink">/agrilink</a>. Newest first.</p>
+      {listings.length === 0 ? <p className="muted">No listings yet.</p> : (
+        <div className="scroll">
+          <table className="data">
+            <thead><tr><th>Listed</th><th>Farmer</th><th>WhatsApp</th><th>Where</th><th>Crop</th><th className="num">Amount</th><th className="num">Price</th><th>Ready</th><th>Delivery</th><th>Notes</th></tr></thead>
+            <tbody>
+              {listings.map((l) => (
+                <tr key={l.id}>
+                  <td>{when(l.created_at)}</td>
+                  <td>{l.farmer}{l.farm ? <span className="muted small"> ({l.farm})</span> : null}</td>
+                  <td className="mono"><a href={`https://wa.me/${l.phone.replace(/\D/g, "").replace(/^0/, "27")}`} target="_blank" rel="noopener">{l.phone}</a></td>
+                  <td>{[l.town, l.province].filter(Boolean).join(", ")}</td>
+                  <td>{l.crop}</td>
+                  <td className="num">{Number(l.qty)} {l.unit}</td>
+                  <td className="num">{l.price !== null ? `R${Number(l.price)}` : "–"}</td>
+                  <td>{l.available_from ?? "now"}</td>
+                  <td>{l.delivery === "deliver" ? "delivers" : "collect"}</td>
+                  <td className="small">{l.notes}</td>
                 </tr>
               ))}
             </tbody>

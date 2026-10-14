@@ -1,0 +1,50 @@
+/* AgriLink public page. Own look, separate from OnPoint. */
+.al {
+  --al-bg: #f3f5ef; --al-card: #fff; --al-ink: #1b2a1f; --al-muted: #5b6b5e; --al-line: #d8dfd3;
+  --al-green: #2f6b3a; --al-green-ink: #fff; --al-soft: #e1eedf; --al-harvest: #b5531c; --al-bad: #a3352c; --al-bad-soft: #f6dfdc;
+  min-height: 100dvh; background: var(--al-bg); color: var(--al-ink);
+}
+@media (prefers-color-scheme: dark) {
+  .al { --al-bg: #121914; --al-card: #1a231c; --al-ink: #e6eee5; --al-muted: #9db09f; --al-line: #2c3a2f;
+    --al-green: #7cc48a; --al-green-ink: #0f1a12; --al-soft: #1f3324; --al-harvest: #e8915c; --al-bad: #ec8a80; --al-bad-soft: #3b1d1a; }
+}
+.al-head { display: flex; align-items: center; gap: 10px; padding: 14px max(16px, env(safe-area-inset-left)); max-width: 640px; margin: 0 auto; }
+.al-brand { font-weight: 800; font-size: 24px; letter-spacing: -.02em; }
+.al-brand span { color: var(--al-harvest); }
+.al-pilot { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; background: var(--al-soft); color: var(--al-green); padding: 3px 8px; border-radius: 999px; }
+.al-main { max-width: 640px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); display: grid; gap: 18px; }
+.al-hero h1 { font-size: clamp(28px, 7vw, 38px); line-height: 1.08; margin: 8px 0 10px; letter-spacing: -.02em; text-wrap: balance; }
+.al-hero p { color: var(--al-muted); margin: 0 0 14px; font-size: 17px; }
+.al-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.al-steps li { display: flex; gap: 10px; align-items: center; font-size: 15px; }
+.al-steps b { flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--al-green); color: var(--al-green-ink); font-size: 14px; }
+.al-card { background: var(--al-card); border: 1px solid var(--al-line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; }
+.al-card h2 { font-size: 19px; margin: 6px 0 0; }
+.al-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.al-full { grid-column: 1 / -1; }
+@media (max-width: 480px) { .al-grid { grid-template-columns: 1fr; } }
+.al label { display: grid; gap: 5px; font-size: 14px; font-weight: 700; }
+.al label i { font-weight: 400; font-style: normal; color: var(--al-muted); }
+.al input, .al select, .al textarea { font: inherit; font-weight: 400; font-size: 16px; color: var(--al-ink); background: var(--al-card); border: 1px solid var(--al-line); border-radius: 10px; padding: 11px 12px; width: 100%; min-width: 0; }
+.al input:focus-visible, .al select:focus-visible, .al textarea:focus-visible, .al-btn:focus-visible { outline: 2px solid var(--al-harvest); outline-offset: 2px; }
+.al-crop { border: 1px solid var(--al-line); border-radius: 12px; padding: 12px 14px 14px; margin: 0; display: grid; gap: 10px; }
+.al-crop legend { font-weight: 700; font-size: 13px; color: var(--al-muted); padding: 0 6px; }
+.al-choice { display: flex; gap: 10px; flex-wrap: wrap; }
+.al-choice label, .al-consent { display: flex !important; align-items: flex-start; gap: 10px; font-weight: 600; }
+.al-choice label { border: 1px solid var(--al-line); border-radius: 10px; padding: 11px 14px; flex: 1 1 160px; align-items: center; }
+.al-choice input, .al-consent input { width: 20px; height: 20px; flex: 0 0 20px; margin: 0; accent-color: var(--al-green); }
+.al-consent { font-weight: 400 !important; font-size: 14px !important; color: var(--al-muted); }
+.al-block { display: grid; }
+.al-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.al-btn { display: inline-flex; align-items: center; justify-content: center; font: inherit; font-weight: 700; font-size: 16px; border-radius: 12px; padding: 13px 18px; cursor: pointer; text-decoration: none; border: 1px solid transparent; }
+.al-go { background: var(--al-green); color: var(--al-green-ink); width: 100%; font-size: 18px; }
+.al-go:disabled { opacity: .6; }
+.al-ghost { background: transparent; border-color: var(--al-line); color: var(--al-ink); }
+.al-wa { background: #25d366; color: #0b2a14; }
+.al-link { background: none; border: 0; color: var(--al-bad); font: inherit; font-size: 14px; justify-self: start; padding: 0; cursor: pointer; text-decoration: underline; }
+.al-error { background: var(--al-bad-soft); color: var(--al-bad); padding: 10px 12px; border-radius: 10px; margin: 0; font-weight: 600; }
+.al-done ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.al-done p { margin: 0; color: var(--al-muted); }
+.al-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.al-row .al-btn { flex: 1 1 200px; }
+.al-fine { font-size: 13px; color: var(--al-muted); margin: 0; }

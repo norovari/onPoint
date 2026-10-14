@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/signup", "/auth", "/demo", "/faq", "/pricing", "/terms", "/api/payfast", "/api/cron"];
+const PUBLIC_PREFIXES = ["/agrilink", "/login", "/signup", "/auth", "/demo", "/faq", "/pricing", "/terms", "/api/payfast", "/api/cron"];
 const isPublic = (path: string) => path === "/" || PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
 
 // Refreshes the Supabase session cookie on every request and sends
