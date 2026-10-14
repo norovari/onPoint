@@ -33,7 +33,7 @@ export default async function AgriLink({ searchParams }: { searchParams: Promise
         </section>
         <ListForm province={province} />
         <p className="al-fine">
-          Free to list. AgriLink only earns a small fee when a sale goes through, agreed with you first.
+          Free to try during the pilot. After that, plans start at R99 a month, and AgriLink takes no cut of your sales.
           Your number is only shared with buyers interested in your produce. AgriLink is run by Norovari (Pty) Ltd.
         </p>
       </main>
