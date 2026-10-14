@@ -48,3 +48,14 @@
 .al-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .al-row .al-btn { flex: 1 1 200px; }
 .al-fine { font-size: 13px; color: var(--al-muted); margin: 0; }
+.al-plans h2 { font-size: 22px; margin: 8px 0 4px; }
+.al-sub { color: var(--al-muted); margin: 0 0 12px; }
+.al-plan-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.al-plan { background: var(--al-card); border: 1px solid var(--al-line); border-radius: 14px; padding: 16px; display: grid; gap: 6px; align-content: start; }
+.al-plan-pop { border: 2px solid var(--al-green); }
+.al-plan-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.al-plan h3 { margin: 0; font-size: 18px; }
+.al-price { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+.al-price span { font-size: 14px; font-weight: 400; color: var(--al-muted); }
+.al-who { font-size: 14px; color: var(--al-muted); }
+.al-plan ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }

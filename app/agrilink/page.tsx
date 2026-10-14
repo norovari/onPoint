@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PROVINCES } from "@/lib/agrilink";
+import { PLANS, PROVINCES } from "@/lib/agrilink";
 import ListForm from "./ListForm";
 import "./agrilink.css";
 
@@ -32,8 +32,21 @@ export default async function AgriLink({ searchParams }: { searchParams: Promise
           </ol>
         </section>
         <ListForm province={province} />
+        <section className="al-plans" aria-labelledby="al-plans-h">
+          <h2 id="al-plans-h">Plans</h2>
+          <p className="al-sub">Free during the pilot. You only start paying after your first buyer enquiry through AgriLink. No cut of your sales, ever. Buyers use AgriLink free.</p>
+          <div className="al-plan-grid">
+            {PLANS.map((p) => (
+              <article key={p.id} className={`al-plan${p.id === "grower" ? " al-plan-pop" : ""}`}>
+                <div className="al-plan-top"><h3>{p.name}</h3>{p.id === "grower" && <span className="al-pilot">Recommended</span>}</div>
+                <div className="al-price">R{p.price}<span> a month</span></div>
+                <div className="al-who">{p.who}</div>
+                <ul>{p.points.map((x) => <li key={x}>{x}</li>)}</ul>
+              </article>
+            ))}
+          </div>
+        </section>
         <p className="al-fine">
-          Free to try during the pilot. After that, plans start at R99 a month, and AgriLink takes no cut of your sales.
           Your number is only shared with buyers interested in your produce. AgriLink is run by Norovari (Pty) Ltd.
         </p>
       </main>

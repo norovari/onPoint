@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { CROPS, PROVINCES, UNITS, type CropRow } from "@/lib/agrilink";
+import { CROPS, PLANS, PROVINCES, UNITS, type CropRow } from "@/lib/agrilink";
 
 const blank = (): CropRow => ({ crop: "", qty: "", unit: "crates", price: "", from: "" });
 
@@ -14,6 +14,7 @@ export default function ListForm({ province: initialProvince }: { province: stri
   const [delivery, setDelivery] = useState<"deliver" | "collect">("deliver");
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+  const [plan, setPlan] = useState("unsure");
   const [website, setWebsite] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -28,7 +29,7 @@ export default function ListForm({ province: initialProvince }: { province: stri
     try {
       const res = await fetch("/api/agrilink", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ farmer, farm, phone, province, town, crops, delivery, notes, consent, website }),
+        body: JSON.stringify({ farmer, farm, phone, province, town, crops, delivery, notes, consent, website, plan }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) { setError(out.error || "Something went wrong. Please try again."); return; }
@@ -89,6 +90,12 @@ export default function ListForm({ province: initialProvince }: { province: stri
       </div>
       <label className="al-block">Anything else buyers should know? <i>(optional)</i>
         <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={300} placeholder="Grade, packaging, how often you harvest" />
+      </label>
+      <label className="al-block">Which plan suits you after the free pilot?
+        <select value={plan} onChange={(e) => setPlan(e.target.value)}>
+          <option value="unsure">Not sure yet</option>
+          {PLANS.map((p) => <option key={p.id} value={p.id}>{p.name}: R{p.price} a month ({p.who.toLowerCase()})</option>)}
+        </select>
       </label>
       <input className="al-hp" tabIndex={-1} autoComplete="off" aria-hidden="true" value={website} onChange={(e) => setWebsite(e.target.value)} name="website" />
       <label className="al-consent"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> I agree that AgriLink may share my produce details and WhatsApp number with buyers, and contact me on WhatsApp.</label>

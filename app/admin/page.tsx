@@ -18,7 +18,7 @@ interface Account {
 }
 interface Pay { id: string; subscription_ref: string; business: string; plan: string; reference: string; amount: number; discount_pct: number; status: string; created_at: string; paid_at: string | null }
 
-type Agri = { id: string; created_at: string; farmer: string; farm: string | null; phone: string; province: string; town: string | null; crop: string; qty: string; unit: string; price: string | null; available_from: string | null; delivery: string; notes: string | null };
+type Agri = { id: string; created_at: string; farmer: string; farm: string | null; phone: string; province: string; town: string | null; crop: string; qty: string; unit: string; price: string | null; available_from: string | null; delivery: string; notes: string | null; plan: string | null };
 
 // Only the confirmed nyorovai@gmail.com sign-in passes this check (enforced in the database too).
 export default async function Admin({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -110,7 +110,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       {listings.length === 0 ? <p className="muted">No listings yet.</p> : (
         <div className="scroll">
           <table className="data">
-            <thead><tr><th>Listed</th><th>Farmer</th><th>WhatsApp</th><th>Where</th><th>Crop</th><th className="num">Amount</th><th className="num">Price</th><th>Ready</th><th>Delivery</th><th>Notes</th></tr></thead>
+            <thead><tr><th>Listed</th><th>Farmer</th><th>WhatsApp</th><th>Where</th><th>Crop</th><th className="num">Amount</th><th className="num">Price</th><th>Ready</th><th>Delivery</th><th>Plan</th><th>Notes</th></tr></thead>
             <tbody>
               {listings.map((l) => (
                 <tr key={l.id}>
@@ -123,6 +123,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                   <td className="num">{l.price !== null ? `R${Number(l.price)}` : "–"}</td>
                   <td>{l.available_from ?? "now"}</td>
                   <td>{l.delivery === "deliver" ? "delivers" : "collect"}</td>
+                  <td>{l.plan && l.plan !== "unsure" ? l.plan : <span className="muted">–</span>}</td>
                   <td className="small">{l.notes}</td>
                 </tr>
               ))}

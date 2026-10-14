@@ -38,3 +38,6 @@ begin
 end $$;
 revoke execute on function public.admin_agri_listings() from public, anon;
 grant execute on function public.admin_agri_listings() to authenticated;
+
+-- Which plan the farmer is interested in (optional).
+alter table public.agri_listings add column plan text check (plan is null or plan in ('starter','grower','coop','unsure'));

@@ -6,8 +6,14 @@ export const CROPS = ["Tomatoes", "Potatoes", "Onions", "Cabbage", "Spinach", "B
 export type CropRow = { crop: string; qty: string; unit: string; price: string; from: string };
 export type Listing = {
   farmer: string; farm: string; phone: string; province: string; town: string;
-  delivery: "deliver" | "collect"; notes: string; consent: boolean; crops: CropRow[];
+  delivery: "deliver" | "collect"; notes: string; consent: boolean; crops: CropRow[]; plan?: string;
 };
+
+export const PLANS = [
+  { id: "starter", name: "Starter", price: 99, who: "One farmer", points: ["Up to 5 crops listed at a time", "Matched with buyers in your province", "WhatsApp alert when a buyer wants your crop", "Weekly price guide for your crops"] },
+  { id: "grower", name: "Grower", price: 249, who: "Growing smallholder", points: ["Unlimited crops", "Buyers in neighbouring provinces too", "Featured first in our weekly list to buyers", "Standing weekly orders from regular buyers", "Your sales record: who bought, what price, paid or not"] },
+  { id: "coop", name: "Co-op", price: 599, who: "Up to 15 farmers together", points: ["Harvests combined to fill bigger orders", "Shared delivery planning", "Sales reports per farmer for grants and bank loans", "One contact person for the group"] },
+] as const;
 
 const clip = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".").trim()); return Number.isFinite(n) ? n : NaN; };
@@ -40,6 +46,7 @@ export function toRows(body: Partial<Listing>, batch: string): { rows?: Record<s
       batch, farmer, farm: clip(body.farm, 80) || null, phone, province, town: clip(body.town, 60) || null,
       crop, qty, unit, price, available_from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null,
       delivery: body.delivery === "deliver" ? "deliver" : "collect", notes: clip(body.notes, 300) || null, consent: true,
+      plan: ["starter", "grower", "coop", "unsure"].includes(String(body.plan)) ? body.plan : null,
     });
   }
   if (!rows.length) return { error: "Add at least one crop you have for sale." };
