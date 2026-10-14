@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { createClient } from "@supabase/supabase-js";
 import { PLANS, PROVINCES } from "@/lib/agrilink";
+import { supabaseEnv } from "@/lib/supabase/env";
 import ListForm from "./ListForm";
 import "./agrilink.css";
 
@@ -12,9 +14,23 @@ export const metadata: Metadata = {
   openGraph: { title: "AgriLink · Sell your harvest", description: DESCRIPTION, siteName: "AgriLink", type: "website" },
 };
 
+type Need = { id: string; created_at: string; town: string; buyer_kind: string; buyer: string | null; crop: string; qty: number; unit: string; frequency: string; price_note: string | null };
+const FREQ: Record<string, string> = { weekly: "every week", fortnightly: "every 2 weeks", monthly: "every month", once: "once-off" };
+
+// Confirmed buyer needs (added by AgriLink after speaking to the buyer).
+async function needsFor(province: string): Promise<Need[]> {
+  try {
+    const { url, key } = supabaseEnv();
+    const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data } = await db.rpc("agri_needs_public", { p_province: province });
+    return (data ?? []) as Need[];
+  } catch { return []; }
+}
+
 export default async function AgriLink({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
   const { p } = await searchParams;
   const province = PROVINCES.find((x) => x.toLowerCase().replace(/[^a-z]/g, "") === String(p ?? "").toLowerCase().replace(/[^a-z]/g, "")) ?? "Northern Cape";
+  const needs = await needsFor(province);
   return (
     <div className="al">
       <header className="al-head">
@@ -30,6 +46,25 @@ export default async function AgriLink({ searchParams }: { searchParams: Promise
             <li><b>2</b>We match you with buyers looking for them</li>
             <li><b>3</b>You agree the price and delivery, and get paid by the buyer</li>
           </ol>
+        </section>
+        <section className="al-needs" aria-labelledby="al-needs-h">
+          <h2 id="al-needs-h">Buyers looking now in {province}</h2>
+          {needs.length ? (
+            <>
+              <p className="al-sub">Each of these buyers has spoken to us and told us what they need. Updated as orders are filled.</p>
+              <ul className="al-need-list">
+                {needs.map((n) => (
+                  <li key={n.id} className="al-need">
+                    <div className="al-need-crop">{n.crop}</div>
+                    <div className="al-need-qty">{Number(n.qty)} {n.unit} <span>{FREQ[n.frequency] ?? ""}</span></div>
+                    <div className="al-need-who">{n.buyer ? <b>{n.buyer}</b> : n.buyer_kind}{n.buyer ? ` · ${n.buyer_kind}` : ""} · {n.town}{n.price_note ? ` · ${n.price_note}` : ""}</div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="al-sub al-empty">We&apos;re speaking to greengrocers, fresh produce wholesalers, caterers and supermarkets{province === "Northern Cape" ? " in Kimberley, Upington, Kathu, Postmasburg, De Aar and Springbok" : ` in ${province}`}. Buyers appear here once they&apos;ve told us what they need, so list your crops now to be matched first.</p>
+          )}
         </section>
         <ListForm province={province} />
         <section className="al-plans" aria-labelledby="al-plans-h">

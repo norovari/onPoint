@@ -59,3 +59,11 @@
 .al-price span { font-size: 14px; font-weight: 400; color: var(--al-muted); }
 .al-who { font-size: 14px; color: var(--al-muted); }
 .al-plan ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.al-needs h2 { font-size: 22px; margin: 4px 0 4px; }
+.al-empty { background: var(--al-card); border: 1px dashed var(--al-line); border-radius: 12px; padding: 14px; margin: 0; }
+.al-need-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.al-need { background: var(--al-card); border: 1px solid var(--al-line); border-left: 4px solid var(--al-harvest); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; }
+.al-need-crop { font-weight: 800; font-size: 18px; }
+.al-need-qty { font-weight: 700; }
+.al-need-qty span { font-weight: 400; color: var(--al-muted); }
+.al-need-who { font-size: 14px; color: var(--al-muted); }

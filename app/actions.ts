@@ -662,6 +662,31 @@ export async function adminSetPlan(_: ActionState, f: FormData): Promise<ActionS
   return { ok: "Plan updated." };
 }
 
+export async function adminAddAgriNeed(_: ActionState, f: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const qty = Number(str(f, "qty").replace(",", "."));
+  if (!str(f, "town") || !str(f, "kind") || !str(f, "crop")) return { error: "Fill in town, buyer type and crop." };
+  if (!(qty > 0)) return { error: "Enter how much they buy." };
+  const { error } = await supabase.rpc("admin_add_agri_need", {
+    p_province: str(f, "province"), p_town: str(f, "town"), p_kind: str(f, "kind"), p_name: str(f, "name"),
+    p_show_name: f.get("show_name") === "on", p_crop: str(f, "crop"), p_qty: qty, p_unit: str(f, "unit"),
+    p_frequency: str(f, "frequency"), p_price_note: str(f, "price_note"),
+  });
+  if (error) return { error: friendly(error) };
+  revalidatePath("/admin");
+  revalidatePath("/agrilink");
+  return { ok: "Buyer need added. It now shows on the AgriLink page." };
+}
+
+export async function adminSetAgriNeed(_: ActionState, f: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_agri_need_active", { p_id: str(f, "id"), p_active: str(f, "active") === "true" });
+  if (error) return { error: friendly(error) };
+  revalidatePath("/admin");
+  revalidatePath("/agrilink");
+  return { ok: str(f, "active") === "true" ? "Showing again." : "Taken off the page." };
+}
+
 export async function requestFullCount(_: ActionState, f: FormData): Promise<ActionState> {
   const { supabase } = await requireSession();
   const shiftId = str(f, "shift_id");

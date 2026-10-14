@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Shell } from "@/components/Shell";
 import { ActionForm, Submit } from "@/components/ActionForm";
-import { adminSetPlan } from "@/app/actions";
+import { adminAddAgriNeed, adminSetAgriNeed, adminSetPlan } from "@/app/actions";
+import { PROVINCES, UNITS } from "@/lib/agrilink";
 import { planName } from "@/lib/plans";
 import { formatZar } from "@/lib/calculations";
 import { when } from "@/lib/labels";
@@ -18,6 +19,7 @@ interface Account {
 }
 interface Pay { id: string; subscription_ref: string; business: string; plan: string; reference: string; amount: number; discount_pct: number; status: string; created_at: string; paid_at: string | null }
 
+type Need = { id: string; created_at: string; province: string; town: string; buyer_kind: string; buyer_name: string | null; show_name: boolean; crop: string; qty: string; unit: string; frequency: string; price_note: string | null; active: boolean };
 type Agri = { id: string; created_at: string; farmer: string; farm: string | null; phone: string; province: string; town: string | null; crop: string; qty: string; unit: string; price: string | null; available_from: string | null; delivery: string; notes: string | null; plan: string | null };
 
 // Only the confirmed nyorovai@gmail.com sign-in passes this check (enforced in the database too).
@@ -33,7 +35,8 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     supabase.rpc("admin_overview"),
     supabase.rpc("admin_invoices", { p_status: "all" }),
   ]);
-  const { data: agri } = await supabase.rpc("admin_agri_listings");
+  const [{ data: agri }, { data: needRows }] = await Promise.all([supabase.rpc("admin_agri_listings"), supabase.rpc("admin_agri_needs")]);
+  const needs = (needRows ?? []) as Need[];
   const listings = (agri ?? []) as Agri[];
   const allAccounts = (overview ?? []) as Account[];
   const allPayments = (pending ?? []) as Pay[];
@@ -98,6 +101,47 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                   <td>{when(d.last)}</td>
                   <td className="num">{d.opens}{d.visitors.size > 1 ? ` (${d.visitors.size} people)` : ""}</td>
                   <td className="small">{[...d.did].map((x) => DID[x]).join(", ") || <span className="muted">just looked</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2>AgriLink: buyers looking now</h2>
+      <p className="muted small">Add a need only after the buyer has told you what they buy. Active needs show on <a href="/agrilink">/agrilink</a>; the name shows only if you tick that they agreed.</p>
+      <details>
+        <summary>Add a buyer need</summary>
+        <ActionForm action={adminAddAgriNeed}>
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            <div><label htmlFor="n-crop">Crop</label><input id="n-crop" name="crop" required maxLength={40} placeholder="Tomatoes" /></div>
+            <div><label htmlFor="n-qty">Amount</label><input id="n-qty" name="qty" inputMode="decimal" required placeholder="30" /></div>
+            <div><label htmlFor="n-unit">Unit</label><select id="n-unit" name="unit" defaultValue="crates">{UNITS.map((u) => <option key={u}>{u}</option>)}</select></div>
+            <div><label htmlFor="n-freq">How often</label><select id="n-freq" name="frequency" defaultValue="weekly"><option value="weekly">Every week</option><option value="fortnightly">Every 2 weeks</option><option value="monthly">Every month</option><option value="once">Once-off</option></select></div>
+            <div><label htmlFor="n-kind">Buyer type</label><input id="n-kind" name="kind" required maxLength={40} placeholder="Greengrocer" /></div>
+            <div><label htmlFor="n-town">Town</label><input id="n-town" name="town" required maxLength={60} placeholder="Kimberley" /></div>
+            <div><label htmlFor="n-prov">Province</label><select id="n-prov" name="province" defaultValue="Northern Cape">{PROVINCES.map((p) => <option key={p}>{p}</option>)}</select></div>
+            <div><label htmlFor="n-name">Buyer name (private unless ticked)</label><input id="n-name" name="name" maxLength={80} /></div>
+            <div><label htmlFor="n-price">Price note (optional)</label><input id="n-price" name="price_note" maxLength={60} placeholder="pays about R90 a crate" /></div>
+          </div>
+          <label className="small"><input type="checkbox" name="show_name" /> The buyer agreed we may show their name</label>
+          <Submit>Add need</Submit>
+        </ActionForm>
+      </details>
+      {needs.length === 0 ? <p className="muted">No buyer needs yet.</p> : (
+        <div className="scroll">
+          <table className="data">
+            <thead><tr><th>Crop</th><th className="num">Amount</th><th>Buyer</th><th>Where</th><th>Note</th><th>On page</th><th></th></tr></thead>
+            <tbody>
+              {needs.map((n) => (
+                <tr key={n.id} style={n.active ? undefined : { opacity: 0.55 }}>
+                  <td>{n.crop}</td>
+                  <td className="num">{Number(n.qty)} {n.unit} <span className="muted small">{n.frequency}</span></td>
+                  <td>{n.buyer_name ?? <span className="muted">–</span>}<span className="muted small"> {n.buyer_kind}{n.buyer_name ? (n.show_name ? ", name shown" : ", name private") : ""}</span></td>
+                  <td>{n.town}, {n.province}</td>
+                  <td className="small">{n.price_note}</td>
+                  <td>{n.active ? "showing" : "filled"}</td>
+                  <td><ActionForm action={adminSetAgriNeed} hidden={{ id: n.id, active: n.active ? "false" : "true" }}><Submit>{n.active ? "Mark filled" : "Show again"}</Submit></ActionForm></td>
                 </tr>
               ))}
             </tbody>
